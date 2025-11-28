@@ -517,6 +517,20 @@ function showLoading(show = true, options = {}) {
             workspaceScreen.classList.add('loading-blur');
         }
 
+        // Update animated background text with campaign name
+        const bgText1 = document.getElementById('loading-bg-text-1');
+        const bgText2 = document.getElementById('loading-bg-text-2');
+        const bgText3 = document.getElementById('loading-bg-text-3');
+
+        // Get campaign name from window.campaignData or use default
+        const campaignName = (window.campaignData && window.campaignData.campaignName) ?
+            window.campaignData.campaignName.toUpperCase() :
+            'CAMPAIGN';
+
+        if (bgText1) bgText1.textContent = campaignName;
+        if (bgText2) bgText2.textContent = campaignName;
+        if (bgText3) bgText3.textContent = campaignName;
+
         // Reset progress
         currentProgress = options.percent || 0;
 

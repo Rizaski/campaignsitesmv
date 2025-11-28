@@ -291,12 +291,39 @@ function getCallFormTemplate() {
         <form id="modal-form" class="modal-form">
             <div class="form-group">
                 <label for="call-voter-name">Voter Name *</label>
-                <input type="text" id="call-voter-name" name="call-voter-name" placeholder="Enter voter name" required>
+                <div class="searchable-dropdown" style="position: relative;">
+                    <input type="text" id="call-voter-name" name="call-voter-name" placeholder="Search voter by name..." autocomplete="off" required>
+                    <input type="hidden" id="call-voter-id-hidden" name="call-voter-id-hidden">
+                    <div id="call-voter-dropdown" class="dropdown-list" style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: white; border: 2px solid var(--border-color); border-radius: 12px; max-height: 300px; overflow-y: auto; z-index: 1000; margin-top: 5px; box-shadow: var(--shadow-lg);">
+                        <!-- Voter options will be populated here -->
+                    </div>
+                </div>
+                <small style="color: var(--text-light); font-size: 12px; margin-top: 5px; display: block;">Start typing to search voters</small>
             </div>
             <div class="form-row">
                 <div class="form-group">
                     <label for="call-voter-id">Voter ID</label>
-                    <input type="text" id="call-voter-id" name="call-voter-id" placeholder="Enter voter ID">
+                    <input type="text" id="call-voter-id" name="call-voter-id" placeholder="Auto-filled when voter selected" readonly style="background: var(--light-color);">
+                </div>
+                <div class="form-group">
+                    <label for="call-voter-phone">Voter Phone Number</label>
+                    <input type="text" id="call-voter-phone" name="call-voter-phone" placeholder="Auto-filled when voter selected" readonly style="background: var(--light-color);">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="call-voter-island">Island</label>
+                    <input type="text" id="call-voter-island" name="call-voter-island" placeholder="Auto-filled when voter selected" readonly style="background: var(--light-color);">
+                </div>
+                <div class="form-group">
+                    <label for="call-voter-address">Permanent Address</label>
+                    <input type="text" id="call-voter-address" name="call-voter-address" placeholder="Auto-filled when voter selected" readonly style="background: var(--light-color);">
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="call-caller-name">Caller Name *</label>
+                    <input type="text" id="call-caller-name" name="call-caller-name" placeholder="Enter caller name" required>
                 </div>
                 <div class="form-group">
                     <label for="call-date">Call Date *</label>
@@ -881,12 +908,19 @@ async function handleFormSubmit(type, formData) {
             case 'call':
                 const callVoterName = formData.get('call-voter-name');
                 const callVoterId = formData.get('call-voter-id');
+                const callVoterPhone = formData.get('call-voter-phone');
+                const callCallerName = formData.get('call-caller-name');
                 const callDateValue = formData.get('call-date');
                 const callStatus = formData.get('call-status');
                 const callNotes = formData.get('call-notes');
+                const callVoterDocumentId = formData.get('call-voter-id-hidden'); // Get hidden voter ID
 
                 if (!callVoterName || !callVoterName.trim()) {
                     showModalError('Voter name is required.');
+                    return;
+                }
+                if (!callCallerName || !callCallerName.trim()) {
+                    showModalError('Caller name is required.');
                     return;
                 }
                 if (!callStatus || !callStatus.trim()) {
@@ -897,6 +931,9 @@ async function handleFormSubmit(type, formData) {
                 dataToSave = {
                     voterName: callVoterName.trim(),
                     voterId: cleanFormValue(callVoterId),
+                    voterDocumentId: cleanFormValue(callVoterDocumentId), // Save the document ID
+                    phone: cleanFormValue(callVoterPhone),
+                    caller: callCallerName.trim(),
                     callDate: callDateValue ? new Date(callDateValue) : serverTimestamp(),
                     status: callStatus.trim(),
                     notes: cleanFormValue(callNotes),
@@ -1273,6 +1310,7 @@ async function handleFormSubmit(type, formData) {
         const editCandidateId = form && form.dataset.editCandidateId ? form.dataset.editCandidateId : null;
         const editBallotId = form && form.dataset.editBallotId ? form.dataset.editBallotId : null;
         const editTransportationId = form && form.dataset.editTransportationId ? form.dataset.editTransportationId : null;
+        const editCallId = form && form.dataset.editCallId ? form.dataset.editCallId : null;
 
         if (editVoterId && type === 'voter') {
             // Update existing voter
@@ -1425,6 +1463,31 @@ async function handleFormSubmit(type, formData) {
             // Reload table
             if (window.loadBallotsData) {
                 window.loadBallotsData(true);
+            }
+        } else if (editCallId && type === 'call') {
+            // Update existing call
+            const {
+                doc,
+                updateDoc
+            } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
+            const callRef = doc(window.db, 'calls', editCallId);
+            await updateDoc(callRef, dataToSave);
+
+            // Show success message
+            if (window.showSuccess) {
+                window.showSuccess('Call updated successfully!', 'Success');
+            }
+
+            // Close modal
+            closeModal();
+
+            // Reload calls table
+            if (window.reloadTableData) {
+                window.reloadTableData('call', editCallId);
+            } else if (window.loadCallsData) {
+                setTimeout(() => {
+                    window.loadCallsData(true);
+                }, 500);
             }
         } else if (editTransportationId && type === 'transportation') {
             // Update existing transportation (preserve createdAt)
@@ -1791,6 +1854,8 @@ function openModal(type, itemId = null) {
                     freshForm.dataset.editBallotId = itemId;
                 } else if (type === 'transportation') {
                     freshForm.dataset.editTransportationId = itemId;
+                } else if (type === 'call') {
+                    freshForm.dataset.editCallId = itemId;
                 }
             }
 
@@ -1910,6 +1975,17 @@ function openModal(type, itemId = null) {
             setTimeout(() => {
                 setupPledgeVoterDropdown();
                 setupPledgeCandidateDropdown();
+            }, 150);
+        }
+
+        // Setup searchable voter dropdown for call form (after form is set up)
+        if (type === 'call') {
+            setTimeout(() => {
+                setupCallVoterDropdown();
+                // If editing, populate form with existing call data
+                if (itemId) {
+                    populateCallEditForm(itemId);
+                }
             }, 150);
         }
 
@@ -2068,6 +2144,241 @@ async function setupBallotDropdown() {
         console.error('Error loading ballots for dropdown:', error);
         // On error, keep the default option
         ballotSelect.innerHTML = '<option value="">Error loading ballots</option>';
+    }
+}
+
+// Setup searchable voter dropdown for call form
+function setupCallVoterDropdown() {
+    const voterInput = document.getElementById('call-voter-name');
+    const voterDropdown = document.getElementById('call-voter-dropdown');
+    const voterIdInput = document.getElementById('call-voter-id');
+    const voterPhoneInput = document.getElementById('call-voter-phone');
+    const voterIslandInput = document.getElementById('call-voter-island');
+    const voterAddressInput = document.getElementById('call-voter-address');
+    const voterIdHidden = document.getElementById('call-voter-id-hidden');
+
+    if (!voterInput || !voterDropdown) return;
+
+    let allVoters = [];
+    let filteredVoters = [];
+    let selectedVoter = null;
+
+    // Load voters from cache or Firebase
+    async function loadVoters() {
+        // Try to use cached data first
+        if (window.voterDataCache && window.voterDataCache.data && window.voterDataCache.data.filteredDocs) {
+            allVoters = window.voterDataCache.data.filteredDocs.map(({
+                id,
+                data
+            }) => ({
+                id: id,
+                name: data.name || 'N/A',
+                idNumber: data.idNumber || data.voterId || id,
+                phone: data.phone || data.phoneNumber || data.mobile || data.contact || data.number || '',
+                island: data.island || data.constituency || '',
+                address: data.address || data.permanentAddress || data.location || ''
+            }));
+            return;
+        }
+
+        // Fallback: fetch from Firebase
+        if (!window.db || !window.userEmail) return;
+
+        try {
+            const {
+                collection,
+                query,
+                where,
+                getDocs
+            } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
+            const votersQuery = query(collection(window.db, 'voters'), where('email', '==', window.userEmail));
+            const snapshot = await getDocs(votersQuery);
+            allVoters = snapshot.docs
+                .filter(doc => {
+                    const data = doc.data();
+                    return data.email === window.userEmail || data.campaignEmail === window.userEmail;
+                })
+                .map(doc => {
+                    const data = doc.data();
+                    return {
+                        id: doc.id,
+                        name: data.name || 'N/A',
+                        idNumber: data.idNumber || data.voterId || doc.id,
+                        phone: data.phone || data.phoneNumber || data.mobile || data.contact || data.number || '',
+                        island: data.island || data.constituency || '',
+                        address: data.address || data.permanentAddress || data.location || ''
+                    };
+                });
+        } catch (error) {
+            console.error('Error loading voters for call:', error);
+        }
+    }
+
+    // Filter and display voters
+    function filterVoters(searchTerm) {
+        if (!searchTerm || searchTerm.trim() === '') {
+            filteredVoters = [];
+            voterDropdown.style.display = 'none';
+            return;
+        }
+
+        const term = searchTerm.toLowerCase().trim();
+        filteredVoters = allVoters.filter(voter =>
+            voter.name.toLowerCase().includes(term) ||
+            voter.idNumber.toLowerCase().includes(term)
+        ).slice(0, 20); // Limit to 20 results for performance
+
+        if (filteredVoters.length === 0) {
+            voterDropdown.innerHTML = '<div style="padding: 15px; text-align: center; color: var(--text-light);">No voters found</div>';
+            voterDropdown.style.display = 'block';
+            return;
+        }
+
+        // Render dropdown options
+        voterDropdown.innerHTML = filteredVoters.map(voter => `
+            <div class="dropdown-option" data-voter-id="${voter.id}" data-voter-name="${voter.name}" data-voter-idnumber="${voter.idNumber}" data-voter-phone="${voter.phone || ''}" data-voter-island="${voter.island || ''}" data-voter-address="${(voter.address || '').replace(/"/g, '&quot;')}" style="padding: 12px 16px; cursor: pointer; border-bottom: 1px solid var(--border-light); transition: background 0.2s;">
+                <div style="font-weight: 600; color: var(--text-color); margin-bottom: 4px;">${voter.name}</div>
+                <div style="font-size: 12px; color: var(--text-light);">ID: ${voter.idNumber}${voter.phone ? ` • Phone: ${voter.phone}` : ''}${voter.island ? ` • ${voter.island}` : ''}</div>
+            </div>
+        `).join('');
+
+        // Add click handlers
+        voterDropdown.querySelectorAll('.dropdown-option').forEach(option => {
+            option.addEventListener('click', () => {
+                const voterId = option.dataset.voterId;
+                const voterName = option.dataset.voterName;
+                const voterIdNumber = option.dataset.voterIdnumber;
+                const voterPhone = option.dataset.voterPhone || '';
+                const voterIsland = option.dataset.voterIsland || '';
+                const voterAddress = option.dataset.voterAddress || '';
+
+                // Set selected voter
+                voterInput.value = voterName;
+                if (voterIdInput) voterIdInput.value = voterIdNumber;
+                if (voterPhoneInput) voterPhoneInput.value = voterPhone;
+                if (voterIslandInput) voterIslandInput.value = voterIsland;
+                if (voterAddressInput) voterAddressInput.value = voterAddress;
+                if (voterIdHidden) {
+                    voterIdHidden.value = voterId;
+                    voterIdHidden.dispatchEvent(new Event('change', {
+                        bubbles: true
+                    }));
+                }
+
+                selectedVoter = {
+                    id: voterId,
+                    name: voterName,
+                    idNumber: voterIdNumber
+                };
+
+                voterDropdown.style.display = 'none';
+            });
+
+            option.addEventListener('mouseenter', () => {
+                option.style.background = 'var(--light-color)';
+            });
+            option.addEventListener('mouseleave', () => {
+                option.style.background = 'white';
+            });
+        });
+
+        voterDropdown.style.display = 'block';
+    }
+
+    // Load voters and setup event listeners
+    loadVoters().then(() => {
+        // Search input handler
+        voterInput.addEventListener('input', (e) => {
+            filterVoters(e.target.value);
+        });
+
+        // Close dropdown when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!voterInput.contains(e.target) && !voterDropdown.contains(e.target)) {
+                voterDropdown.style.display = 'none';
+            }
+        });
+
+        // Close dropdown on Escape key
+        voterInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                voterDropdown.style.display = 'none';
+            }
+        });
+    });
+}
+
+// Populate call edit form with existing data
+async function populateCallEditForm(callId) {
+    if (!window.db || !window.userEmail || !callId) {
+        console.warn('[populateCallEditForm] Missing required parameters');
+        return;
+    }
+
+    try {
+        const {
+            doc,
+            getDoc
+        } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
+        const callRef = doc(window.db, 'calls', callId);
+        const callSnap = await getDoc(callRef);
+
+        if (!callSnap.exists()) {
+            console.warn('[populateCallEditForm] Call not found:', callId);
+            return;
+        }
+
+        const callData = callSnap.data();
+
+        // Check permission
+        if (callData.campaignEmail !== window.userEmail && callData.email !== window.userEmail) {
+            console.warn('[populateCallEditForm] Permission denied');
+            return;
+        }
+
+        // Update modal title
+        const modalTitle = document.getElementById('modal-title');
+        if (modalTitle) {
+            modalTitle.textContent = 'Edit Call';
+        }
+
+        // Populate form fields
+        const voterNameInput = document.getElementById('call-voter-name');
+        const voterIdInput = document.getElementById('call-voter-id');
+        const voterPhoneInput = document.getElementById('call-voter-phone');
+        const voterIslandInput = document.getElementById('call-voter-island');
+        const voterAddressInput = document.getElementById('call-voter-address');
+        const voterIdHidden = document.getElementById('call-voter-id-hidden');
+        const callerNameInput = document.getElementById('call-caller-name');
+        const callDateInput = document.getElementById('call-date');
+        const callStatusSelect = document.getElementById('call-status');
+        const callNotesTextarea = document.getElementById('call-notes');
+
+        if (voterNameInput) voterNameInput.value = callData.voterName || '';
+        if (voterIdInput) voterIdInput.value = callData.voterId || '';
+        if (voterPhoneInput) voterPhoneInput.value = callData.phone || '';
+        if (voterIslandInput) voterIslandInput.value = callData.island || '';
+        if (voterAddressInput) voterAddressInput.value = callData.address || '';
+        if (voterIdHidden && callData.voterDocumentId) voterIdHidden.value = callData.voterDocumentId;
+        if (callerNameInput) callerNameInput.value = callData.caller || '';
+        if (callStatusSelect) callStatusSelect.value = callData.status || 'answered';
+
+        // Format date for datetime-local input
+        if (callDateInput && callData.callDate) {
+            const callDate = callData.callDate.toDate ? callData.callDate.toDate() : new Date(callData.callDate);
+            const year = callDate.getFullYear();
+            const month = String(callDate.getMonth() + 1).padStart(2, '0');
+            const day = String(callDate.getDate()).padStart(2, '0');
+            const hours = String(callDate.getHours()).padStart(2, '0');
+            const minutes = String(callDate.getMinutes()).padStart(2, '0');
+            callDateInput.value = `${year}-${month}-${day}T${hours}:${minutes}`;
+        }
+
+        if (callNotesTextarea) callNotesTextarea.value = callData.notes || '';
+
+        console.log('[populateCallEditForm] Form populated successfully');
+    } catch (error) {
+        console.error('[populateCallEditForm] Error populating form:', error);
     }
 }
 

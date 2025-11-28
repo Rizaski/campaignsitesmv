@@ -475,25 +475,25 @@ const pageTemplates = {
                 
                 <!-- Ballot List Tab -->
                 <div id="ballot-list-tab" class="ballot-tab-content active">
-                    <div class="table-container">
-                        <table class="data-table">
-                            <thead>
-                                <tr>
-                                    <th>Ballot Number</th>
-                                    <th>Location</th>
-                                    <th>Expected Voters</th>
-                                    <th>Status</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody id="ballots-table-body">
-                                <tr>
-                                    <td colspan="5" style="text-align: center; padding: 40px; color: var(--text-light);">No ballots added yet</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                    <div id="ballots-pagination" class="table-pagination" style="display: none;"></div>
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Ballot Number</th>
+                                <th>Location</th>
+                                <th>Expected Voters</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="ballots-table-body">
+                            <tr>
+                                <td colspan="5" style="text-align: center; padding: 40px; color: var(--text-light);">No ballots added yet</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <div id="ballots-pagination" class="table-pagination" style="display: none;"></div>
                 </div>
                 
                 <!-- Statistics Tab -->
@@ -1115,7 +1115,7 @@ async function loadDashboardData(forceRefresh = false) {
         const votersQuery = query(collection(window.db, 'voters'), where('email', '==', window.userEmail));
         // Events use campaignEmail, and we want to count only upcoming events (future dates)
         const eventsQuery = query(collection(window.db, 'events'), where('campaignEmail', '==', window.userEmail));
-        const callsQuery = query(collection(window.db, 'calls'), where('email', '==', window.userEmail));
+        const callsQuery = query(collection(window.db, 'calls'), where('campaignEmail', '==', window.userEmail));
 
         // Update progress: Setting up listeners
         if (window.updateComponentProgress) {
@@ -2988,7 +2988,7 @@ async function loadEventsData(forceRefresh = false) {
                     <p class="event-time">${startTime} - ${endTime}</p>
                     <div class="event-actions">
                         <span class="event-attendees">Expected: ${expectedAttendees}+</span>
-                        <button class="icon-btn-sm">View</button>
+                        <button class="icon-btn-sm" onclick="viewEventDetails('${data.id}')">View</button>
                     </div>
                 </div>
             `;
@@ -3005,6 +3005,300 @@ async function loadEventsData(forceRefresh = false) {
         grid.innerHTML = '<div style="text-align: center; padding: 40px; color: var(--text-light); grid-column: 1 / -1;"><p>Error loading events</p></div>';
     }
 }
+
+// View event details
+async function viewEventDetails(eventId) {
+    if (!window.db || !window.userEmail) {
+        if (window.showErrorDialog) {
+            window.showErrorDialog('Database not initialized. Please refresh the page.');
+        }
+        return;
+    }
+
+    // Show loading indicator - use existing modal system
+    let modalOverlay = document.getElementById('modal-overlay');
+    let modalBody = null;
+    let modalTitle = null;
+
+    if (!modalOverlay) {
+        // Try to use ensureModalExists if available
+        if (typeof ensureModalExists === 'function') {
+            modalOverlay = ensureModalExists();
+        } else {
+            // Create modal overlay if ensureModalExists is not available
+            modalOverlay = document.createElement('div');
+            modalOverlay.id = 'modal-overlay';
+            modalOverlay.className = 'modal-overlay';
+            modalOverlay.style.display = 'none';
+            modalOverlay.innerHTML = `
+                <div class="modal-container">
+                    <div class="modal-header">
+                        <h2 id="modal-title">Modal Title</h2>
+                        <button class="modal-close" id="modal-close-btn" onclick="if (typeof closeModal === 'function') closeModal(); else document.getElementById('modal-overlay').style.display = 'none';">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <line x1="18" y1="6" x2="6" y2="18"></line>
+                                <line x1="6" y1="6" x2="18" y2="18"></line>
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="modal-body" id="modal-body"></div>
+                </div>
+            `;
+            document.body.appendChild(modalOverlay);
+
+            // Close on overlay click
+            modalOverlay.addEventListener('click', (e) => {
+                if (e.target === modalOverlay) {
+                    if (typeof closeModal === 'function') {
+                        closeModal();
+                    } else {
+                        modalOverlay.style.display = 'none';
+                    }
+                }
+            });
+        }
+    }
+
+    if (modalOverlay) {
+        modalOverlay.style.display = 'flex';
+        modalBody = document.getElementById('modal-body');
+        modalTitle = document.getElementById('modal-title');
+        if (modalBody) {
+            modalBody.innerHTML = `
+                <div style="display: flex; justify-content: center; align-items: center; padding: 40px;">
+                    <div class="loading-spinner" style="width: 40px; height: 40px; border: 4px solid var(--border-light); border-top-color: var(--primary-color); border-radius: 50%; animation: spin 1s linear infinite;"></div>
+                </div>
+            `;
+        }
+        if (modalTitle) {
+            modalTitle.textContent = 'Loading Event...';
+        }
+    }
+
+    try {
+        if (!window.db) {
+            throw new Error('Database not initialized');
+        }
+        if (!window.userEmail) {
+            throw new Error('User email not available');
+        }
+        if (!eventId) {
+            throw new Error('Event ID is required');
+        }
+
+        const {
+            doc,
+            getDoc
+        } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
+
+        console.log('[viewEventDetails] Fetching event:', eventId);
+
+        // Fetch event document
+        const eventRef = doc(window.db, 'events', eventId);
+        const eventSnap = await getDoc(eventRef);
+
+        console.log('[viewEventDetails] Event snapshot exists:', eventSnap.exists());
+
+        if (!eventSnap.exists()) {
+            if (window.showErrorDialog) {
+                window.showErrorDialog('Event not found.', 'Error');
+            }
+            if (modalOverlay) modalOverlay.style.display = 'none';
+            return;
+        }
+
+        const eventData = eventSnap.data();
+
+        // Verify the event belongs to the current user
+        if (eventData.campaignEmail !== window.userEmail) {
+            if (window.showErrorDialog) {
+                window.showErrorDialog('You do not have permission to view this event.', 'Access Denied');
+            }
+            if (modalOverlay) modalOverlay.style.display = 'none';
+            return;
+        }
+
+        // Format event date
+        const eventDate = eventData.eventDate ? (eventData.eventDate.toDate ? eventData.eventDate.toDate() : new Date(eventData.eventDate)) : new Date();
+        const formattedDate = eventDate.toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            weekday: 'long'
+        });
+
+        // Format created date
+        let createdDateStr = 'N/A';
+        if (eventData.createdAt) {
+            const createdDate = eventData.createdAt.toDate ? eventData.createdAt.toDate() : new Date(eventData.createdAt);
+            createdDateStr = createdDate.toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            });
+        }
+
+        // Create modal HTML
+        const modalHTML = `
+            <div class="event-details-modal" style="max-width: 600px; margin: 0 auto;">
+                <div style="display: flex; align-items: center; gap: 20px; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 2px solid var(--border-color);">
+                    <div style="width: 80px; height: 80px; border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; background: var(--gradient-primary); color: white; font-weight: 700; border: 3px solid var(--primary-color);">
+                        <span style="font-size: 32px; line-height: 1;">${eventDate.getDate()}</span>
+                        <span style="font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;">${eventDate.toLocaleString('default', { month: 'short' })}</span>
+                    </div>
+                    <div>
+                        <h2 style="margin: 0; color: var(--text-color); font-size: 24px; font-weight: 700;">${eventData.eventName || 'Untitled Event'}</h2>
+                        <p style="margin: 5px 0 0 0; color: var(--text-light); font-size: 14px;">${formattedDate}</p>
+                    </div>
+                </div>
+
+                <!-- Event Information Section -->
+                <div style="background: var(--light-color); padding: 20px; border-radius: 12px; margin-bottom: 30px;">
+                    <h3 style="margin: 0 0 15px 0; color: var(--text-color); font-size: 18px; font-weight: 600;">Event Information</h3>
+                    <div style="display: grid; grid-template-columns: 1fr; gap: 15px;">
+                        <div class="detail-item">
+                            <label style="display: block; font-size: 12px; font-weight: 600; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 5px;">Location</label>
+                            <p style="margin: 0; color: var(--text-color); font-size: 15px; font-weight: 500; display: flex; align-items: center; gap: 6px;">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                                    <circle cx="12" cy="10" r="3"></circle>
+                                </svg>
+                                ${eventData.location || 'N/A'}
+                            </p>
+                        </div>
+                        <div class="detail-item" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                            <div>
+                                <label style="display: block; font-size: 12px; font-weight: 600; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 5px;">Start Time</label>
+                                <p style="margin: 0; color: var(--text-color); font-size: 15px; font-weight: 500; display: flex; align-items: center; gap: 6px;">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <circle cx="12" cy="12" r="10"></circle>
+                                        <polyline points="12 6 12 12 16 14"></polyline>
+                                    </svg>
+                                    ${eventData.startTime || 'TBD'}
+                                </p>
+                            </div>
+                            <div>
+                                <label style="display: block; font-size: 12px; font-weight: 600; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 5px;">End Time</label>
+                                <p style="margin: 0; color: var(--text-color); font-size: 15px; font-weight: 500; display: flex; align-items: center; gap: 6px;">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <circle cx="12" cy="12" r="10"></circle>
+                                        <polyline points="12 6 12 12 16 14"></polyline>
+                                    </svg>
+                                    ${eventData.endTime || 'TBD'}
+                                </p>
+                            </div>
+                        </div>
+                        <div class="detail-item">
+                            <label style="display: block; font-size: 12px; font-weight: 600; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 5px;">Expected Attendees</label>
+                            <p style="margin: 0; color: var(--text-color); font-size: 15px; font-weight: 500; display: flex; align-items: center; gap: 6px;">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                                    <circle cx="9" cy="7" r="4"></circle>
+                                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                                    <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                                </svg>
+                                ${eventData.expectedAttendees || 0}+ attendees
+                            </p>
+                        </div>
+                        ${eventData.description ? `
+                        <div class="detail-item">
+                            <label style="display: block; font-size: 12px; font-weight: 600; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 5px;">Description</label>
+                            <p style="margin: 0; color: var(--text-color); font-size: 15px; font-weight: 500; line-height: 1.6;">${eventData.description}</p>
+                        </div>
+                        ` : ''}
+                        ${eventData.createdAt ? `
+                        <div class="detail-item">
+                            <label style="display: block; font-size: 12px; font-weight: 600; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 5px;">Created At</label>
+                            <p style="margin: 0; color: var(--text-color); font-size: 15px; font-weight: 500;">${createdDateStr}</p>
+                        </div>
+                        ` : ''}
+                    </div>
+                </div>
+
+                <!-- Actions -->
+                <div style="display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 30px; padding-top: 20px; border-top: 2px solid var(--border-color);">
+                    <button 
+                        class="btn-secondary btn-compact" 
+                        onclick="deleteEvent('${eventId}')"
+                        style="display: flex; align-items: center; gap: 6px; color: var(--danger-color); border-color: var(--danger-color);"
+                        onmouseover="this.style.background='rgba(220, 38, 38, 0.1)'"
+                        onmouseout="this.style.background='transparent'">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="3 6 5 6 21 6"></polyline>
+                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                        </svg>
+                        Delete Event
+                    </button>
+                    <div style="display: flex; gap: 10px;">
+                        <button 
+                            class="btn-secondary btn-compact" 
+                            onclick="closeModal()"
+                            style="display: flex; align-items: center; gap: 6px;">
+                            Close
+                        </button>
+                        <button 
+                            class="btn-primary btn-compact" 
+                            onclick="closeModal(); setTimeout(() => { if (window.openModal) window.openModal('event', '${eventId}'); }, 100);"
+                            style="display: flex; align-items: center; gap: 6px;">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                            </svg>
+                            Edit Event
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Update modal
+        if (modalBody) {
+            modalBody.innerHTML = modalHTML;
+        }
+        if (modalTitle) {
+            modalTitle.textContent = 'Event Details';
+        }
+    } catch (error) {
+        console.error('Error loading event details:', error);
+        console.error('Error details:', {
+            message: error.message,
+            stack: error.stack,
+            eventId: eventId,
+            db: !!window.db,
+            userEmail: window.userEmail
+        });
+
+        // Show error in modal - get references again in case they weren't set
+        if (!modalBody) modalBody = document.getElementById('modal-body');
+        if (!modalTitle) modalTitle = document.getElementById('modal-title');
+        if (modalBody) {
+            modalBody.innerHTML = `
+                <div style="text-align: center; padding: 40px;">
+                    <div style="color: var(--danger-color); margin-bottom: 16px;">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity: 0.5;">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <line x1="12" y1="8" x2="12" y2="12"></line>
+                            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                        </svg>
+                    </div>
+                    <h3 style="color: var(--text-color); margin-bottom: 8px;">Failed to load event details</h3>
+                    <p style="color: var(--text-light); margin-bottom: 20px;">${error.message || 'An unexpected error occurred'}</p>
+                    <button class="btn-primary btn-compact" onclick="closeModal()">Close</button>
+                </div>
+            `;
+        }
+        if (modalTitle) {
+            modalTitle.textContent = 'Error';
+        }
+
+        if (window.showErrorDialog) {
+            window.showErrorDialog(`Failed to load event details: ${error.message}`, 'Error');
+        }
+    }
+}
+
+// Make function globally available
+window.viewEventDetails = viewEventDetails;
 
 // Render cached events data
 function renderCachedEventsData() {
@@ -3045,7 +3339,7 @@ function renderCachedEventsData() {
                 <p class="event-time">${startTime} - ${endTime}</p>
                 <div class="event-actions">
                     <span class="event-attendees">Expected: ${expectedAttendees}+</span>
-                    <button class="icon-btn-sm">View</button>
+                    <button class="icon-btn-sm" onclick="viewEventDetails('${data.id}')">View</button>
                 </div>
             </div>
         `;
@@ -3201,7 +3495,7 @@ async function loadCallsData(forceRefresh = false) {
                 <td>${dateStr}</td>
                 <td><span class="status-badge ${statusClass}">${statusText}</span></td>
                 <td>
-                    <button class="icon-btn" title="View Details"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg></button>
+                    <button class="icon-btn" title="View Details" onclick="viewCallDetails('${call.id}')"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg></button>
                 </td>
             `;
             fragment.appendChild(row);
@@ -4085,7 +4379,7 @@ function renderCachedCallsData() {
             <td>${dateStr}</td>
             <td><span class="status-badge ${statusClass}">${statusText}</span></td>
             <td>
-                <button class="icon-btn" title="View Details"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg></button>
+                <button class="icon-btn" title="View Details" onclick="viewCallDetails('${call.id}')"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg></button>
             </td>
         `;
         fragment.appendChild(row);
@@ -4095,6 +4389,14 @@ function renderCachedCallsData() {
     requestAnimationFrame(() => {
         tbody.textContent = '';
         tbody.appendChild(fragment);
+
+        // Attach event listeners for view details buttons
+        tbody.querySelectorAll('[onclick*="viewCallDetails"]').forEach(btn => {
+            const callId = btn.getAttribute('onclick').match(/'([^']+)'/)[1];
+            if (callId) {
+                btn.onclick = () => viewCallDetails(callId);
+            }
+        });
     });
 
     // Render pagination
@@ -10588,6 +10890,271 @@ window.deletePledge = deletePledge;
 window.editCandidate = editCandidate;
 window.deleteCandidate = deleteCandidate;
 window.editAgent = editAgent;
+
+// Delete event function
+async function deleteEvent(eventId) {
+    if (!window.db || !window.userEmail) {
+        if (window.showErrorDialog) {
+            window.showErrorDialog('Database not initialized. Please refresh the page.');
+        }
+        return;
+    }
+
+    // Confirm deletion
+    if (window.showConfirm) {
+        const confirmed = await window.showConfirm(
+            'Are you sure you want to delete this event? This action cannot be undone.',
+            'Delete Event'
+        );
+        if (!confirmed) return;
+    } else if (!confirm('Are you sure you want to delete this event? This action cannot be undone.')) {
+        return;
+    }
+
+    try {
+        const {
+            doc,
+            getDoc,
+            deleteDoc
+        } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
+
+        // Verify event exists and belongs to user before deleting
+        const eventRef = doc(window.db, 'events', eventId);
+        const eventSnap = await getDoc(eventRef);
+
+        if (!eventSnap.exists()) {
+            if (window.showErrorDialog) {
+                window.showErrorDialog('Event not found.', 'Error');
+            }
+            return;
+        }
+
+        const eventData = eventSnap.data();
+
+        // Verify the event belongs to the current user
+        if (eventData.campaignEmail !== window.userEmail) {
+            if (window.showErrorDialog) {
+                window.showErrorDialog('You do not have permission to delete this event.', 'Access Denied');
+            }
+            return;
+        }
+
+        // Delete the event document
+        await deleteDoc(eventRef);
+
+        // Clear cache
+        clearCache('events');
+        clearCache('activities');
+
+        // Reload events data
+        if (window.loadEventsData) {
+            window.loadEventsData(true);
+        }
+
+        // Show success message
+        if (window.showSuccessMessage) {
+            window.showSuccessMessage('Event deleted successfully.', 'Deleted');
+        } else if (window.showSuccess) {
+            window.showSuccess('Event deleted successfully.', 'Success');
+        }
+
+        // Close modal if open
+        const modalOverlay = document.getElementById('modal-overlay');
+        if (modalOverlay) {
+            modalOverlay.style.display = 'none';
+        }
+    } catch (error) {
+        console.error('Error deleting event:', error);
+        if (window.showErrorDialog) {
+            window.showErrorDialog('Failed to delete event. Please try again.', 'Error');
+        }
+    }
+}
+
+// Make function globally available
+window.deleteEvent = deleteEvent;
+
+// View Call Details Function
+async function viewCallDetails(callId) {
+    if (!window.db || !window.userEmail) {
+        window.showErrorDialog('Database not initialized. Please refresh the page.');
+        return;
+    }
+
+    let modalTitle, modalBody;
+
+    try {
+        const {
+            doc,
+            getDoc
+        } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
+
+        const callRef = doc(window.db, 'calls', callId);
+        const callSnap = await getDoc(callRef);
+
+        if (!callSnap.exists()) {
+            window.showErrorDialog('Call record not found.', 'Error');
+            return;
+        }
+
+        const callData = callSnap.data();
+
+        // Check permission
+        if (callData.campaignEmail !== window.userEmail && callData.email !== window.userEmail) {
+            window.showErrorDialog('You do not have permission to view this call record.', 'Access Denied');
+            return;
+        }
+
+        const callDate = callData.callDate ? (callData.callDate.toDate ? callData.callDate.toDate() : new Date(callData.callDate)) : new Date();
+        const dateStr = callDate.toLocaleString('default', {
+            month: 'long',
+            day: 'numeric',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+
+        const statusClass = callData.status === 'answered' ? 'status-success' :
+            (callData.status === 'no-answer' ? 'status-warning' :
+                (callData.status === 'busy' ? 'status-info' : 'status-danger'));
+        const statusText = callData.status === 'answered' ? 'Answered' :
+            (callData.status === 'no-answer' ? 'No Answer' :
+                (callData.status === 'busy' ? 'Busy' : 'Failed'));
+
+        const modalContent = `
+            <div style="padding: 1.5rem;">
+                <div style="display: grid; gap: 1.5rem;">
+                    <div style="background: var(--light-color); padding: 1.25rem; border-radius: 12px;">
+                        <div style="font-size: 0.875rem; color: var(--text-light); margin-bottom: 0.5rem;">Voter Information</div>
+                        <div style="font-size: 1.125rem; font-weight: 600; color: var(--text-color); margin-bottom: 0.25rem;">${callData.voterName || 'N/A'}</div>
+                        <div style="font-size: 0.875rem; color: var(--text-light);">ID: ${callData.voterId || 'N/A'}</div>
+                        ${callData.phone ? `<div style="font-size: 0.875rem; color: var(--text-light); margin-top: 0.25rem;">Phone: ${callData.phone}</div>` : ''}
+                    </div>
+
+                    <div style="background: var(--light-color); padding: 1.25rem; border-radius: 12px;">
+                        <div style="font-size: 0.875rem; color: var(--text-light); margin-bottom: 0.5rem;">Call Information</div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <div>
+                                <div style="font-size: 0.75rem; color: var(--text-light); margin-bottom: 0.25rem;">Caller</div>
+                                <div style="font-size: 0.9375rem; font-weight: 600; color: var(--text-color);">${callData.caller || 'N/A'}</div>
+                            </div>
+                            <div>
+                                <div style="font-size: 0.75rem; color: var(--text-light); margin-bottom: 0.25rem;">Date & Time</div>
+                                <div style="font-size: 0.9375rem; font-weight: 600; color: var(--text-color);">${dateStr}</div>
+                            </div>
+                            <div>
+                                <div style="font-size: 0.75rem; color: var(--text-light); margin-bottom: 0.25rem;">Status</div>
+                                <div><span class="status-badge ${statusClass}">${statusText}</span></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    ${callData.notes ? `
+                    <div style="background: var(--light-color); padding: 1.25rem; border-radius: 12px;">
+                        <div style="font-size: 0.875rem; color: var(--text-light); margin-bottom: 0.5rem;">Notes</div>
+                        <div style="font-size: 0.9375rem; color: var(--text-color); line-height: 1.6; white-space: pre-wrap;">${callData.notes}</div>
+                    </div>
+                    ` : ''}
+
+                    <div style="display: flex; gap: 1rem; margin-top: 1rem; flex-wrap: wrap;">
+                        <button class="btn-secondary btn-compact" onclick="closeModal()">Close</button>
+                        <button class="btn-primary btn-compact" onclick="closeModal(); setTimeout(() => { if (window.openModal) window.openModal('call', '${callId}'); }, 100);">Edit Call</button>
+                        <button class="btn-danger btn-compact" onclick="window.deleteCall('${callId}')" style="display: flex; align-items: center; gap: 6px;">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="3 6 5 6 21 6"></polyline>
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                            </svg>
+                            Delete Call
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Open modal using the existing modal system
+        if (window.openModal) {
+            window.openModal('call', callId);
+            // Update modal content with details view
+            setTimeout(() => {
+                modalTitle = document.getElementById('modal-title');
+                modalBody = document.getElementById('modal-body');
+                if (modalTitle && modalBody) {
+                    modalTitle.textContent = 'Call Details';
+                    modalBody.innerHTML = modalContent;
+                }
+            }, 100);
+        } else {
+            // Fallback: use showDialog if openModal not available
+            window.showDialog('Call Details', modalContent);
+        }
+    } catch (error) {
+        console.error('Error loading call details:', error);
+        if (!modalTitle || !modalBody) {
+            window.showErrorDialog('Failed to load call details. Please try again.', 'Error');
+        } else {
+            modalTitle.textContent = 'Error';
+            modalBody.innerHTML = '<div style="padding: 2rem; text-align: center; color: var(--danger-color);">Failed to load call details. Please try again.</div>';
+        }
+    }
+}
+window.viewCallDetails = viewCallDetails;
+
+// Delete Call Function
+async function deleteCall(callId) {
+    if (!window.db || !window.userEmail) {
+        window.showErrorDialog('Database not initialized. Please refresh the page.');
+        return;
+    }
+
+    const confirmed = await window.showConfirm(
+        'Are you sure you want to delete this call record? This action cannot be undone.',
+        'Delete Call'
+    );
+    if (!confirmed) return;
+
+    try {
+        const {
+            doc,
+            getDoc,
+            deleteDoc
+        } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
+
+        const callRef = doc(window.db, 'calls', callId);
+        const callSnap = await getDoc(callRef);
+
+        if (!callSnap.exists()) {
+            window.showErrorDialog('Call record not found.', 'Error');
+            return;
+        }
+
+        const callData = callSnap.data();
+        if (callData.campaignEmail !== window.userEmail && callData.email !== window.userEmail) {
+            window.showErrorDialog('You do not have permission to delete this call record.', 'Access Denied');
+            return;
+        }
+
+        await deleteDoc(callRef);
+
+        // Clear cache
+        if (window.clearCache) {
+            window.clearCache('calls');
+        }
+
+        // Reload calls table
+        if (window.reloadTableData) {
+            window.reloadTableData('calls');
+        } else if (window.loadCallsData) {
+            window.loadCallsData(true);
+        }
+
+        window.showSuccess('Call record deleted successfully.', 'Deleted');
+        closeModal(); // Close the call detail modal
+    } catch (error) {
+        console.error('Error deleting call:', error);
+        window.showErrorDialog('Failed to delete call record. Please try again.', 'Error');
+    }
+}
+window.deleteCall = deleteCall;
 window.deleteAgent = deleteAgent;
 window.loadPageContent = loadPageContent;
 // Delete a single notification

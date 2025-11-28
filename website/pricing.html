@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pricing - Campaign Pro</title>
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+
+<body>
+    <!-- Navigation -->
+    <nav class="navbar" id="navbar">
+        <div class="nav-container">
+            <a href="index.html" class="logo">Campaign Pro</a>
+            <ul class="nav-links">
+                <li><a href="index.html">Home</a></li>
+                <li><a href="features.html">Features</a></li>
+                <li><a href="pricing.html">Pricing</a></li>
+                <li><a href="about.html">About</a></li>
+                <li><a href="contact.html">Contact</a></li>
+                <li><a href="contact.html" class="btn-primary">Get Started</a></li>
+            </ul>
+            <button class="mobile-menu-toggle" id="mobile-menu-toggle" aria-label="Toggle menu">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="3" y1="6" x2="21" y2="6"></line>
+                    <line x1="3" y1="12" x2="21" y2="12"></line>
+                    <line x1="3" y1="18" x2="21" y2="18"></line>
+                </svg>
+            </button>
+        </div>
+        <div class="mobile-menu" id="mobile-menu">
+            <a href="index.html">Home</a>
+            <a href="features.html">Features</a>
+            <a href="pricing.html">Pricing</a>
+            <a href="about.html">About</a>
+            <a href="contact.html">Contact</a>
+            <a href="contact.html" class="btn-primary" style="margin-top: 1rem; text-align: center;">Get Started</a>
+        </div>
+    </nav>
+
+    <!-- Pricing Hero -->
+    <section class="section" style="padding-top: 120px; background: var(--light-color); position: relative; overflow: hidden;">
+        <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: linear-gradient(135deg, rgba(111, 193, 218, 0.1) 0%, rgba(141, 212, 232, 0.1) 50%, rgba(111, 193, 218, 0.1) 100%); background-size: 300% 300%; animation: subtleGradient 12s ease infinite; pointer-events: none; z-index: 0;"></div>
+        <div class="container" style="position: relative; z-index: 1;">
+            <h1 class="section-title">Simple, Transparent Pricing</h1>
+            <p class="section-subtitle">Choose the plan that fits your campaign needs. All plans include full access to all features.</p>
+        </div>
+    </section>
+
+    <!-- Pricing Cards -->
+    <section class="section">
+        <div class="container">
+            <div class="pricing-grid">
+                <!-- Basic Plan -->
+                <div class="pricing-card">
+                    <div class="pricing-header">
+                        <div class="pricing-name">Basic</div>
+                        <div class="pricing-price">MVR 5,000</div>
+                        <div class="pricing-period">per campaign</div>
+                    </div>
+                    <ul class="pricing-features">
+                        <li>Up to 1,000 voters</li>
+                        <li>Up to 5 candidates</li>
+                        <li>Unlimited events</li>
+                        <li>Call management</li>
+                        <li>Pledge tracking</li>
+                        <li>Basic reporting</li>
+                        <li>Email support</li>
+                    </ul>
+                    <a href="contact.html" class="btn-secondary">Get Started</a>
+                </div>
+
+                <!-- Professional Plan (Featured) -->
+                <div class="pricing-card featured">
+                    <div style="position: absolute; top: -15px; left: 50%; transform: translateX(-50%); background: var(--primary-color); color: white; padding: 0.5rem 1.5rem; border-radius: 20px; font-size: 0.875rem; font-weight: 600;">
+                        Most Popular
+                    </div>
+                    <div class="pricing-header">
+                        <div class="pricing-name">Professional</div>
+                        <div class="pricing-price">MVR 10,000</div>
+                        <div class="pricing-period">per campaign</div>
+                    </div>
+                    <ul class="pricing-features">
+                        <li>Up to 5,000 voters</li>
+                        <li>Unlimited candidates</li>
+                        <li>Unlimited events</li>
+                        <li>Call management</li>
+                        <li>Pledge tracking</li>
+                        <li>Agent management</li>
+                        <li>Advanced reporting</li>
+                        <li>Real-time messaging</li>
+                        <li>Priority support</li>
+                    </ul>
+                    <a href="contact.html" class="btn-primary">Get Started</a>
+                </div>
+
+                <!-- Enterprise Plan -->
+                <div class="pricing-card">
+                    <div class="pricing-header">
+                        <div class="pricing-name">Enterprise</div>
+                        <div class="pricing-price">Custom</div>
+                        <div class="pricing-period">per campaign</div>
+                    </div>
+                    <ul class="pricing-features">
+                        <li>Unlimited voters</li>
+                        <li>Unlimited candidates</li>
+                        <li>Unlimited events</li>
+                        <li>All features included</li>
+                        <li>Custom integrations</li>
+                        <li>Dedicated account manager</li>
+                        <li>24/7 priority support</li>
+                        <li>Custom training</li>
+                        <li>SLA guarantee</li>
+                    </ul>
+                    <a href="contact.html" class="btn-secondary">Contact Sales</a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Comparison -->
+    <section class="section" style="background: var(--light-color);">
+        <div class="container">
+            <h2 class="section-title">Feature Comparison</h2>
+            <div style="background: white; border-radius: 16px; overflow: hidden; box-shadow: var(--shadow-lg); margin-top: 2rem;">
+                <table style="width: 100%; border-collapse: collapse;">
+                    <thead>
+                        <tr style="background: var(--light-color);">
+                            <th style="padding: 1rem; text-align: left; font-weight: 600;">Feature</th>
+                            <th style="padding: 1rem; text-align: center; font-weight: 600;">Basic</th>
+                            <th style="padding: 1rem; text-align: center; font-weight: 600; background: var(--primary-50);">Professional</th>
+                            <th style="padding: 1rem; text-align: center; font-weight: 600;">Enterprise</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr style="border-top: 1px solid var(--border-color);">
+                            <td style="padding: 1rem;">Voter Management</td>
+                            <td style="padding: 1rem; text-align: center;">✓</td>
+                            <td style="padding: 1rem; text-align: center; background: var(--primary-50);">✓</td>
+                            <td style="padding: 1rem; text-align: center;">✓</td>
+                        </tr>
+                        <tr style="border-top: 1px solid var(--border-color);">
+                            <td style="padding: 1rem;">Candidate Management</td>
+                            <td style="padding: 1rem; text-align: center;">✓</td>
+                            <td style="padding: 1rem; text-align: center; background: var(--primary-50);">✓</td>
+                            <td style="padding: 1rem; text-align: center;">✓</td>
+                        </tr>
+                        <tr style="border-top: 1px solid var(--border-color);">
+                            <td style="padding: 1rem;">Event Management</td>
+                            <td style="padding: 1rem; text-align: center;">✓</td>
+                            <td style="padding: 1rem; text-align: center; background: var(--primary-50);">✓</td>
+                            <td style="padding: 1rem; text-align: center;">✓</td>
+                        </tr>
+                        <tr style="border-top: 1px solid var(--border-color);">
+                            <td style="padding: 1rem;">Call Management</td>
+                            <td style="padding: 1rem; text-align: center;">✓</td>
+                            <td style="padding: 1rem; text-align: center; background: var(--primary-50);">✓</td>
+                            <td style="padding: 1rem; text-align: center;">✓</td>
+                        </tr>
+                        <tr style="border-top: 1px solid var(--border-color);">
+                            <td style="padding: 1rem;">Pledge Tracking</td>
+                            <td style="padding: 1rem; text-align: center;">✓</td>
+                            <td style="padding: 1rem; text-align: center; background: var(--primary-50);">✓</td>
+                            <td style="padding: 1rem; text-align: center;">✓</td>
+                        </tr>
+                        <tr style="border-top: 1px solid var(--border-color);">
+                            <td style="padding: 1rem;">Agent Management</td>
+                            <td style="padding: 1rem; text-align: center;">—</td>
+                            <td style="padding: 1rem; text-align: center; background: var(--primary-50);">✓</td>
+                            <td style="padding: 1rem; text-align: center;">✓</td>
+                        </tr>
+                        <tr style="border-top: 1px solid var(--border-color);">
+                            <td style="padding: 1rem;">Real-time Messaging</td>
+                            <td style="padding: 1rem; text-align: center;">—</td>
+                            <td style="padding: 1rem; text-align: center; background: var(--primary-50);">✓</td>
+                            <td style="padding: 1rem; text-align: center;">✓</td>
+                        </tr>
+                        <tr style="border-top: 1px solid var(--border-color);">
+                            <td style="padding: 1rem;">Ballot Management</td>
+                            <td style="padding: 1rem; text-align: center;">✓</td>
+                            <td style="padding: 1rem; text-align: center; background: var(--primary-50);">✓</td>
+                            <td style="padding: 1rem; text-align: center;">✓</td>
+                        </tr>
+                        <tr style="border-top: 1px solid var(--border-color);">
+                            <td style="padding: 1rem;">Advanced Reporting</td>
+                            <td style="padding: 1rem; text-align: center;">Basic</td>
+                            <td style="padding: 1rem; text-align: center; background: var(--primary-50);">Advanced</td>
+                            <td style="padding: 1rem; text-align: center;">Custom</td>
+                        </tr>
+                        <tr style="border-top: 1px solid var(--border-color);">
+                            <td style="padding: 1rem;">Support</td>
+                            <td style="padding: 1rem; text-align: center;">Email</td>
+                            <td style="padding: 1rem; text-align: center; background: var(--primary-50);">Priority</td>
+                            <td style="padding: 1rem; text-align: center;">24/7 Dedicated</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
+    <!-- FAQ Section -->
+    <section class="section">
+        <div class="container">
+            <h2 class="section-title">Frequently Asked Questions</h2>
+            <div style="max-width: 800px; margin: 0 auto; margin-top: 3rem;">
+                <div style="background: white; padding: 1.5rem; border-radius: 12px; margin-bottom: 1rem; box-shadow: var(--shadow);">
+                    <h3 style="margin-bottom: 0.5rem; color: var(--text-color);">What's included in each plan?</h3>
+                    <p style="color: var(--text-light); line-height: 1.8;">All plans include access to the core features: voter management, candidate management, event scheduling, call tracking, and pledge management. Higher tiers include additional features like agent management, real-time messaging, and advanced reporting.</p>
+                </div>
+                <div style="background: white; padding: 1.5rem; border-radius: 12px; margin-bottom: 1rem; box-shadow: var(--shadow);">
+                    <h3 style="margin-bottom: 0.5rem; color: var(--text-color);">Can I upgrade or downgrade my plan?</h3>
+                    <p style="color: var(--text-light); line-height: 1.8;">Yes, you can upgrade or downgrade your plan at any time. Changes will be reflected immediately, and billing will be adjusted accordingly.</p>
+                </div>
+                <div style="background: white; padding: 1.5rem; border-radius: 12px; margin-bottom: 1rem; box-shadow: var(--shadow);">
+                    <h3 style="margin-bottom: 0.5rem; color: var(--text-color);">Is there a setup fee?</h3>
+                    <p style="color: var(--text-light); line-height: 1.8;">No setup fees for Basic and Professional plans. Enterprise plans may include setup and customization fees depending on your requirements.</p>
+                </div>
+                <div style="background: white; padding: 1.5rem; border-radius: 12px; margin-bottom: 1rem; box-shadow: var(--shadow);">
+                    <h3 style="margin-bottom: 0.5rem; color: var(--text-color);">What payment methods do you accept?</h3>
+                    <p style="color: var(--text-light); line-height: 1.8;">We accept bank transfers, credit cards, and other local payment methods. Contact us for more details.</p>
+                </div>
+                <div style="background: white; padding: 1.5rem; border-radius: 12px; box-shadow: var(--shadow);">
+                    <h3 style="margin-bottom: 0.5rem; color: var(--text-color);">Do you offer training?</h3>
+                    <p style="color: var(--text-light); line-height: 1.8;">Yes! Professional and Enterprise plans include training sessions. We also provide comprehensive documentation and video tutorials for all users.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="section" style="background: var(--gradient-primary); color: white;">
+        <div class="container text-center">
+            <h2 class="section-title" style="color: white;">Still Have Questions?</h2>
+            <p class="section-subtitle" style="color: rgba(255,255,255,0.9);">Contact us to discuss your specific needs</p>
+            <div style="margin-top: 2rem;">
+                <a href="contact.html" class="btn-primary" style="background: white; color: var(--primary-color);">Contact Sales</a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="footer-content">
+            <div class="footer-section">
+                <h3>Campaign Pro</h3>
+                <p style="color: rgba(255,255,255,0.7); margin-top: 1rem;">The complete election campaign management solution for Maldivian elections.</p>
+            </div>
+            <div class="footer-section">
+                <h3>Quick Links</h3>
+                <a href="index.html">Home</a>
+                <a href="features.html">Features</a>
+                <a href="pricing.html">Pricing</a>
+                <a href="about.html">About</a>
+            </div>
+            <div class="footer-section">
+                <h3>Resources</h3>
+                <a href="contact.html">Contact Us</a>
+                <a href="contact.html">Request Demo</a>
+                <a href="contact.html">Support</a>
+            </div>
+            <div class="footer-section">
+                <h3>Contact</h3>
+                <p style="color: rgba(255,255,255,0.7); margin-top: 1rem;">Email: info@campaignpro.mv</p>
+                <p style="color: rgba(255,255,255,0.7);">Phone: +960 XXX XXXX</p>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>&copy; 2024 Campaign Pro. All rights reserved.</p>
+        </div>
+    </footer>
+
+    <script src="script.js"></script>
+</body>
+
+</html>
