@@ -1,9 +1,13 @@
 // Firebase Configuration
-// Import from firebase-config.js (can be generated from environment variables)
-// See build-config.js for generating config from environment variables
-import {
-    firebaseConfig
-} from './firebase-config.js';
+const firebaseConfig = {
+    apiKey: "AIzaSyApT0uj8sz3mC8bDtLQeHHodAtZlqfJDns",
+    authDomain: "rajjecampaign.firebaseapp.com",
+    projectId: "rajjecampaign",
+    storageBucket: "rajjecampaign.firebasestorage.app",
+    messagingSenderId: "480799282234",
+    appId: "1:480799282234:web:a35c084610bcdfc2ed9103",
+    measurementId: "G-2K7J967N1V"
+};
 
 // Firebase Imports
 import {

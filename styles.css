@@ -1126,24 +1126,346 @@ input[type="file"] {
 }
 
 .sidebar::-webkit-scrollbar-thumb:hover {
-    background: rgba(111, 193, 218, 0.35);
+    background: rgba(7, 23, 28, 0.35);
 }
 
 .sidebar-header {
-    padding: 20px 16px;
-    background: linear-gradient(135deg, rgba(45, 107, 133, 0.85) 0%, rgba(61, 139, 168, 0.8) 25%, rgba(79, 168, 196, 0.9) 50%, rgba(61, 139, 168, 0.8) 75%, rgba(45, 107, 133, 0.85) 100%);
-    background-size: 200% 200%;
-    animation: gradientShift 8s ease infinite;
-    border-bottom: 1px solid rgba(111, 193, 218, 0.4);
+    padding: 24px 18px;
+    background:
+        linear-gradient(135deg,
+            rgba(15, 23, 42, 0.98) 0%,
+            rgba(30, 41, 59, 0.97) 25%,
+            rgba(51, 65, 85, 0.98) 50%,
+            rgba(30, 41, 59, 0.97) 75%,
+            rgba(44, 70, 129, 0.98) 100%),
+        radial-gradient(ellipse at top left, rgba(111, 193, 218, 0.08) 0%, transparent 50%),
+        radial-gradient(ellipse at bottom right, rgba(141, 212, 232, 0.06) 0%, transparent 50%),
+        repeating-linear-gradient(45deg,
+            transparent,
+            transparent 2px,
+            rgba(255, 255, 255, 0.02) 2px,
+            rgba(255, 255, 255, 0.02) 4px);
+    background-size: 200% 200%, 100% 100%, 100% 100%, 20px 20px;
+    background-position: 0% 50%, 0% 0%, 100% 100%, 0% 0%;
+    animation: gradientShift 15s ease infinite, backgroundFloat 20s ease-in-out infinite;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
     position: relative;
     overflow: hidden;
     z-index: 1;
-    min-height: 100px;
+    min-height: 120px;
     display: flex;
     flex-direction: column;
-    align-items: center;
+    align-items: flex-start;
     justify-content: center;
-    gap: 10px;
+    gap: 12px;
+    box-shadow:
+        0 2px 8px rgba(0, 0, 0, 0.3),
+        inset 0 1px 0 rgba(255, 255, 255, 0.06),
+        0 0 0 1px rgba(255, 255, 255, 0.03);
+    backdrop-filter: blur(1px);
+}
+
+/* Sidebar Header Vector Animation */
+.sidebar-header-vector {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0.5;
+    z-index: 0;
+    pointer-events: none;
+    overflow: hidden;
+}
+
+.election-vector-sidebar {
+    width: 100%;
+    height: 100%;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    animation: sidebarVectorFloat 20s ease-in-out infinite;
+}
+
+@keyframes sidebarVectorFloat {
+
+    0%,
+    100% {
+        transform: translate(-50%, -50%) scale(1) rotate(0deg);
+        opacity: 0.4;
+    }
+
+    25% {
+        transform: translate(-50%, -52%) scale(1.08) rotate(3deg);
+        opacity: 0.5;
+    }
+
+    50% {
+        transform: translate(-50%, -50%) scale(1) rotate(0deg);
+        opacity: 0.4;
+    }
+
+    75% {
+        transform: translate(-50%, -48%) scale(0.92) rotate(-3deg);
+        opacity: 0.5;
+    }
+}
+
+/* Person Animations */
+.election-vector-sidebar .sidebar-person-1 {
+    animation: sidebarPerson1Move 6s ease-in-out infinite;
+    transform-origin: 80px 145px;
+}
+
+.election-vector-sidebar .sidebar-person-2 {
+    animation: sidebarPerson2Move 5.5s ease-in-out infinite;
+    transform-origin: 200px 125px;
+}
+
+.election-vector-sidebar .sidebar-person-3 {
+    animation: sidebarPerson3Move 6.5s ease-in-out infinite;
+    transform-origin: 320px 155px;
+}
+
+@keyframes sidebarPerson1Move {
+
+    0%,
+    100% {
+        transform: translate(0, 0) rotate(0deg);
+        opacity: 0.7;
+    }
+
+    25% {
+        transform: translate(2px, -2px) rotate(1deg);
+        opacity: 0.8;
+    }
+
+    50% {
+        transform: translate(0, 0) rotate(0deg);
+        opacity: 0.7;
+    }
+
+    75% {
+        transform: translate(-2px, 2px) rotate(-1deg);
+        opacity: 0.8;
+    }
+}
+
+@keyframes sidebarPerson2Move {
+
+    0%,
+    100% {
+        transform: translate(0, 0) rotate(0deg);
+        opacity: 0.7;
+    }
+
+    33% {
+        transform: translate(-2px, -3px) rotate(-1deg);
+        opacity: 0.85;
+    }
+
+    66% {
+        transform: translate(2px, -1px) rotate(1deg);
+        opacity: 0.75;
+    }
+}
+
+@keyframes sidebarPerson3Move {
+
+    0%,
+    100% {
+        transform: translate(0, 0) rotate(0deg);
+        opacity: 0.7;
+    }
+
+    30% {
+        transform: translate(3px, -1px) rotate(2deg);
+        opacity: 0.8;
+    }
+
+    60% {
+        transform: translate(-2px, 2px) rotate(-1deg);
+        opacity: 0.75;
+    }
+}
+
+/* Ballot Box Animation */
+.election-vector-sidebar .sidebar-ballot-box {
+    animation: sidebarBallotPulse 4s ease-in-out infinite;
+    transform-origin: 140px 195px;
+}
+
+@keyframes sidebarBallotPulse {
+
+    0%,
+    100% {
+        opacity: 0.7;
+        transform: translateY(0) scale(1);
+    }
+
+    50% {
+        opacity: 0.85;
+        transform: translateY(-3px) scale(1.02);
+    }
+}
+
+/* Multiple Checkmarks Animation */
+.election-vector-sidebar .sidebar-checkmarks g {
+    animation: sidebarCheckPulse 3s ease-in-out infinite;
+}
+
+.election-vector-sidebar .sidebar-checkmarks .checkmark-1 {
+    animation-delay: 0s;
+    transform-origin: 50px 60px;
+}
+
+.election-vector-sidebar .sidebar-checkmarks .checkmark-2 {
+    animation-delay: 1s;
+    transform-origin: 350px 80px;
+}
+
+.election-vector-sidebar .sidebar-checkmarks .checkmark-3 {
+    animation-delay: 2s;
+    transform-origin: 180px 200px;
+}
+
+@keyframes sidebarCheckPulse {
+
+    0%,
+    100% {
+        opacity: 0.8;
+        transform: scale(1);
+    }
+
+    50% {
+        opacity: 1;
+        transform: scale(1.2);
+    }
+}
+
+/* Ballots Animation */
+.election-vector-sidebar .sidebar-ballots rect {
+    animation: sidebarBallotFloat 8s ease-in-out infinite;
+}
+
+.election-vector-sidebar .sidebar-ballots rect:nth-child(1) {
+    animation-delay: 0s;
+}
+
+.election-vector-sidebar .sidebar-ballots rect:nth-child(2) {
+    animation-delay: 4s;
+}
+
+@keyframes sidebarBallotFloat {
+
+    0%,
+    100% {
+        transform: rotate(-15deg) translateY(0);
+        opacity: 0.6;
+    }
+
+    50% {
+        transform: rotate(-12deg) translateY(-3px);
+        opacity: 0.7;
+    }
+}
+
+/* Voting Booth Animation */
+.election-vector-sidebar .sidebar-voting-booth {
+    animation: sidebarBoothPulse 5s ease-in-out infinite;
+    opacity: 0.6;
+}
+
+@keyframes sidebarBoothPulse {
+
+    0%,
+    100% {
+        opacity: 0.6;
+    }
+
+    50% {
+        opacity: 0.75;
+    }
+}
+
+/* Stars Animation */
+.election-vector-sidebar .sidebar-stars g {
+    animation: sidebarStarTwinkle 4s ease-in-out infinite;
+}
+
+.election-vector-sidebar .sidebar-stars .star-1 {
+    animation-delay: 0s;
+}
+
+.election-vector-sidebar .sidebar-stars .star-2 {
+    animation-delay: 0.6s;
+}
+
+.election-vector-sidebar .sidebar-stars .star-3 {
+    animation-delay: 1.2s;
+}
+
+.election-vector-sidebar .sidebar-stars .star-4 {
+    animation-delay: 1.8s;
+}
+
+.election-vector-sidebar .sidebar-stars .star-5 {
+    animation-delay: 0.3s;
+}
+
+.election-vector-sidebar .sidebar-stars .star-6 {
+    animation-delay: 1.5s;
+}
+
+@keyframes sidebarStarTwinkle {
+
+    0%,
+    100% {
+        opacity: 0.6;
+        transform: scale(1) rotate(0deg);
+    }
+
+    25% {
+        opacity: 0.8;
+        transform: scale(1.4) rotate(90deg);
+    }
+
+    50% {
+        opacity: 1;
+        transform: scale(1.6) rotate(180deg);
+    }
+
+    75% {
+        opacity: 0.8;
+        transform: scale(1.4) rotate(270deg);
+    }
+}
+
+/* Voting Lines Animation */
+.election-vector-sidebar .sidebar-voting-lines line {
+    animation: sidebarLineMove 12s linear infinite;
+}
+
+.election-vector-sidebar .sidebar-voting-lines line:nth-child(2) {
+    animation-delay: 6s;
+}
+
+@keyframes sidebarLineMove {
+    0% {
+        stroke-dashoffset: 0;
+        opacity: 0.5;
+    }
+
+    50% {
+        stroke-dashoffset: -10;
+        opacity: 0.7;
+    }
+
+    100% {
+        stroke-dashoffset: -20;
+        opacity: 0.5;
+    }
 }
 
 @keyframes gradientShift {
@@ -1164,13 +1486,18 @@ input[type="file"] {
 
     0%,
     100% {
-        transform: translate(0, 0) scale(1);
-        opacity: 0.15;
+        transform: translate(0, 0) scale(1) rotate(0deg);
+        opacity: 0.4;
     }
 
-    50% {
-        transform: translate(20px, -20px) scale(1.2);
-        opacity: 0.2;
+    33% {
+        transform: translate(25px, -25px) scale(1.15) rotate(120deg);
+        opacity: 0.5;
+    }
+
+    66% {
+        transform: translate(-15px, 15px) scale(0.95) rotate(240deg);
+        opacity: 0.45;
     }
 }
 
@@ -1178,64 +1505,67 @@ input[type="file"] {
 
     0%,
     100% {
-        transform: translate(0, 0) scale(1);
-        opacity: 0.12;
+        transform: translate(0, 0) scale(1) rotate(0deg);
+        opacity: 0.35;
+    }
+
+    33% {
+        transform: translate(-20px, 20px) scale(1.1) rotate(-120deg);
+        opacity: 0.45;
+    }
+
+    66% {
+        transform: translate(15px, -15px) scale(0.9) rotate(-240deg);
+        opacity: 0.4;
+    }
+}
+
+/* Enhanced Floating Orbs */
+.sidebar-header::before {
+    content: '';
+    position: absolute;
+    top: -40%;
+    right: -15%;
+    width: 220px;
+    height: 220px;
+    background: radial-gradient(circle,
+            rgba(141, 212, 232, 0.4) 0%,
+            rgba(111, 193, 218, 0.25) 40%,
+            transparent 70%);
+    pointer-events: none;
+    border-radius: 50%;
+    animation: floatOrb1 10s ease-in-out infinite;
+    filter: blur(20px);
+}
+
+.sidebar-header::after {
+    content: '';
+    position: absolute;
+    bottom: -25%;
+    left: -8%;
+    width: 180px;
+    height: 180px;
+    background: radial-gradient(circle,
+            rgba(111, 193, 218, 0.35) 0%,
+            rgba(79, 168, 196, 0.2) 40%,
+            transparent 70%);
+    pointer-events: none;
+    border-radius: 50%;
+    animation: floatOrb2 12s ease-in-out infinite;
+    filter: blur(18px);
+}
+
+/* Additional decorative elements */
+@keyframes backgroundFloat {
+
+    0%,
+    100% {
+        background-position: 0% 0%, 100% 100%;
     }
 
     50% {
-        transform: translate(-15px, 15px) scale(1.15);
-        opacity: 0.18;
+        background-position: 100% 100%, 0% 0%;
     }
-}
-
-.sidebar-header::before {
-    content: '';
-    position: absolute;
-    top: -50%;
-    right: -20%;
-    width: 200px;
-    height: 200px;
-    background: radial-gradient(circle, rgba(141, 212, 232, 0.55) 0%, transparent 70%);
-    pointer-events: none;
-    border-radius: 50%;
-    animation: floatOrb1 8s ease-in-out infinite;
-}
-
-.sidebar-header::after {
-    content: '';
-    position: absolute;
-    bottom: -30%;
-    left: -10%;
-    width: 150px;
-    height: 150px;
-    background: radial-gradient(circle, rgba(111, 193, 218, 0.5) 0%, transparent 70%);
-    pointer-events: none;
-    border-radius: 50%;
-    animation: floatOrb2 10s ease-in-out infinite;
-}
-
-.sidebar-header::before {
-    content: '';
-    position: absolute;
-    top: -50%;
-    right: -20%;
-    width: 200px;
-    height: 200px;
-    background: radial-gradient(circle, rgba(141, 212, 232, 0.15) 0%, transparent 70%);
-    pointer-events: none;
-    border-radius: 50%;
-}
-
-.sidebar-header::after {
-    content: '';
-    position: absolute;
-    bottom: -30%;
-    left: -10%;
-    width: 150px;
-    height: 150px;
-    background: radial-gradient(circle, rgba(111, 193, 218, 0.12) 0%, transparent 70%);
-    pointer-events: none;
-    border-radius: 50%;
 }
 
 .sidebar-logo {
@@ -1253,64 +1583,137 @@ input[type="file"] {
     position: relative;
     z-index: 2;
     width: 100%;
-    padding: 0 4px;
+    padding: 0 6px;
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    gap: 8px;
+    gap: 10px;
+    animation: fadeInUp 0.6s ease-out;
+}
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
 .sidebar-campaign-info h3 {
-    font-size: 15px;
-    font-weight: 900;
+    font-size: 13px;
+    font-weight: 800;
     margin: 0;
     white-space: normal;
     overflow: visible;
     word-wrap: break-word;
     word-break: break-word;
     color: #ffffff;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.06em;
     max-width: 100%;
     line-height: 1.4;
     padding: 0;
     text-align: left;
     hyphens: auto;
     text-transform: uppercase;
-    /* Strong text shadow for readability */
+    /* Enhanced text shadow for readability */
     text-shadow:
-        0 2px 4px rgba(0, 0, 0, 0.5),
+        0 2px 4px rgba(0, 0, 0, 0.6),
         0 1px 2px rgba(0, 0, 0, 0.7),
-        0 0 8px rgba(0, 0, 0, 0.3);
-    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.4));
+        0 0 8px rgba(0, 0, 0, 0.4);
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5));
+    position: relative;
+    transition: all 0.3s ease;
+}
+
+.sidebar-campaign-info h3::before {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 0;
+    width: 0;
+    height: 2px;
+    background: linear-gradient(90deg,
+            rgba(255, 255, 255, 0.8) 0%,
+            rgba(141, 212, 232, 0.6) 100%);
+    transition: width 0.5s ease;
+    border-radius: 2px;
+}
+
+.sidebar-campaign-info:hover h3::before {
+    width: 100%;
 }
 
 .sidebar-campaign-info p {
-    font-size: 8px;
+    font-size: 7px;
     color: #ffffff;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    font-weight: 700;
-    max-width: calc(100% - 16px);
+    font-weight: 600;
+    max-width: calc(100% - 12px);
     padding: 3px 8px;
-    background: linear-gradient(135deg, rgba(111, 193, 218, 0.95) 0%, rgba(141, 212, 232, 0.9) 100%);
-    border-radius: 10px;
+    background: linear-gradient(135deg,
+            rgba(111, 193, 218, 0.95) 0%,
+            rgba(141, 212, 232, 0.92) 50%,
+            rgba(111, 193, 218, 0.95) 100%);
+    border-radius: 8px;
     display: inline-block;
-    border: 1px solid rgba(255, 255, 255, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.35);
     box-shadow:
-        0 2px 6px rgba(0, 0, 0, 0.3),
-        0 1px 3px rgba(0, 0, 0, 0.4),
-        inset 0 1px 0 rgba(255, 255, 255, 0.3);
-    /* Strong text shadow for readability */
+        0 2px 6px rgba(0, 0, 0, 0.25),
+        0 1px 3px rgba(0, 0, 0, 0.3),
+        inset 0 1px 1px rgba(255, 255, 255, 0.3);
+    /* Enhanced text shadow */
     text-shadow:
-        0 1px 2px rgba(0, 0, 0, 0.6),
-        0 0 4px rgba(0, 0, 0, 0.4);
-    letter-spacing: 0.5px;
-    letter-spacing: 0.02em;
+        0 1px 2px rgba(0, 0, 0, 0.7),
+        0 0 4px rgba(0, 0, 0, 0.5);
+    letter-spacing: 0.05em;
     text-transform: uppercase;
     margin: 0;
-    text-align: left;
-    align-self: flex-start;
+    position: relative;
+    transition: all 0.3s ease;
+    animation: badgePulse 3s ease-in-out infinite;
+}
+
+@keyframes badgePulse {
+
+    0%,
+    100% {
+        transform: scale(1);
+        box-shadow:
+            0 2px 6px rgba(0, 0, 0, 0.25),
+            0 1px 3px rgba(0, 0, 0, 0.3),
+            inset 0 1px 1px rgba(255, 255, 255, 0.3);
+    }
+
+    50% {
+        transform: scale(1.01);
+        box-shadow:
+            0 2px 8px rgba(0, 0, 0, 0.3),
+            0 1px 4px rgba(0, 0, 0, 0.35),
+            inset 0 1px 1px rgba(255, 255, 255, 0.4),
+            0 0 6px rgba(111, 193, 218, 0.25);
+    }
+}
+
+.sidebar-campaign-info p::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg,
+            rgba(255, 255, 255, 0.15) 0%,
+            transparent 50%,
+            rgba(255, 255, 255, 0.08) 100%);
+    border-radius: 8px;
+    pointer-events: none;
+    opacity: 0.5;
 }
 
 .sidebar-nav {
