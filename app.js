@@ -1,13 +1,9 @@
 // Firebase Configuration
-const firebaseConfig = {
-    apiKey: "AIzaSyApT0uj8sz3mC8bDtLQeHHodAtZlqfJDns",
-    authDomain: "rajjecampaign.firebaseapp.com",
-    projectId: "rajjecampaign",
-    storageBucket: "rajjecampaign.firebasestorage.app",
-    messagingSenderId: "480799282234",
-    appId: "1:480799282234:web:a35c084610bcdfc2ed9103",
-    measurementId: "G-2K7J967N1V"
-};
+// Import from firebase-config.js (can be generated from environment variables)
+// See build-config.js for generating config from environment variables
+import {
+    firebaseConfig
+} from './firebase-config.js';
 
 // Firebase Imports
 import {
@@ -1655,49 +1651,81 @@ function initializeEventListeners() {
         tab.addEventListener('click', () => {
             const targetTab = tab.dataset.tab;
 
-            // Remove active class from all tabs and contents
+            // Remove active class from all tabs
             loginTabs.forEach(t => t.classList.remove('active'));
-            document.querySelectorAll('.login-tab-content').forEach(c => c.classList.remove('active'));
 
-            // Add active class to clicked tab and corresponding content
+            // Hide all tab contents (remove active class and force hide with inline style)
+            document.querySelectorAll('.login-tab-content').forEach(c => {
+                c.classList.remove('active');
+                c.style.display = 'none';
+            });
+
+            // Add active class to clicked tab and show corresponding content
             tab.classList.add('active');
             const targetContent = document.getElementById(`tab-content-${targetTab}`);
             if (targetContent) {
                 targetContent.classList.add('active');
+                targetContent.style.display = 'block';
+            }
+
+            // Ensure setup form is always hidden unless explicitly shown via link
+            const setupContent = document.getElementById('tab-content-setup');
+            if (setupContent && targetTab !== 'setup') {
+                setupContent.style.display = 'none';
+                setupContent.classList.remove('active');
             }
         });
     });
 
-    // Switch to onboarding login link (now switches tab)
+    // Switch to onboarding login link (shows onboarding form, hides client login)
     const switchToOnboarding = document.getElementById('switch-to-onboarding');
     if (switchToOnboarding) {
         switchToOnboarding.addEventListener('click', (e) => {
             e.preventDefault();
-            const setupTab = document.getElementById('tab-setup');
-            if (setupTab) {
-                setupTab.click();
-            }
-            // Pre-fill email if available
+            // Get email from client login form if available
             const email = document.getElementById('client-login-email').value;
-            if (email && document.getElementById('onboarding-email')) {
-                document.getElementById('onboarding-email').value = email;
+
+            // Hide client login form and show onboarding form
+            const clientContent = document.getElementById('tab-content-client');
+            const setupContent = document.getElementById('tab-content-setup');
+
+            if (clientContent && setupContent) {
+                clientContent.classList.remove('active');
+                clientContent.style.display = 'none';
+
+                setupContent.classList.add('active');
+                setupContent.style.display = 'block';
+
+                // Pre-fill email if available
+                if (email && document.getElementById('onboarding-email')) {
+                    document.getElementById('onboarding-email').value = email;
+                }
             }
         });
     }
-
-    // Switch to regular client login link (now switches tab)
+    // Switch back to client login from onboarding
     const switchToClientLogin = document.getElementById('switch-to-client-login');
     if (switchToClientLogin) {
         switchToClientLogin.addEventListener('click', (e) => {
             e.preventDefault();
-            const clientTab = document.getElementById('tab-client');
-            if (clientTab) {
-                clientTab.click();
-            }
-            // Pre-fill email if available
+            // Get email from onboarding form if available
             const email = document.getElementById('onboarding-email').value;
-            if (email && document.getElementById('client-login-email')) {
-                document.getElementById('client-login-email').value = email;
+
+            // Hide onboarding form and show client login form
+            const clientContent = document.getElementById('tab-content-client');
+            const setupContent = document.getElementById('tab-content-setup');
+
+            if (clientContent && setupContent) {
+                setupContent.classList.remove('active');
+                setupContent.style.display = 'none';
+
+                clientContent.classList.add('active');
+                clientContent.style.display = 'block';
+
+                // Pre-fill email if available
+                if (email && document.getElementById('client-login-email')) {
+                    document.getElementById('client-login-email').value = email;
+                }
             }
         });
     }

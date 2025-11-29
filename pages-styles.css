@@ -40,6 +40,17 @@
     margin-bottom: 32px;
     padding-bottom: 24px;
     border-bottom: 2px solid var(--border-color);
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.page-header>div:last-child {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+    min-width: 0;
+    flex-shrink: 1;
 }
 
 .page-header h1 {
@@ -1586,8 +1597,20 @@ select.search-input:focus {
         gap: 16px;
     }
 
-    .page-header .btn-primary {
+    .page-header>div:last-child {
         width: 100%;
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .page-header>div:last-child .search-input,
+    .page-header>div:last-child select {
+        width: 100% !important;
+    }
+
+    .page-header .btn-primary {
+        width: auto;
+        align-self: flex-start;
     }
 
     /* Stats grid handled in mobile optimization section above */
@@ -1629,6 +1652,23 @@ select.search-input:focus {
 @media (max-width: 480px) {
     .page-header h1 {
         font-size: 24px;
+    }
+
+    .page-header>div:last-child {
+        gap: 8px;
+        align-items: flex-start;
+    }
+
+    .page-header>div:last-child .search-input,
+    .page-header>div:last-child select {
+        width: 100% !important;
+        max-width: 100%;
+    }
+
+    .page-header .btn-primary {
+        width: auto;
+        align-self: flex-start;
+        min-width: unset;
     }
 
     .reports-grid {

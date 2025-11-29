@@ -324,18 +324,18 @@
                                         </label>
                                         <select id="notification-recipient" required>
                                             <option value="">Select recipient...</option>
-                                            <option value="all">All Active Clients</option>
-                                            <option value="specific">Specific Client</option>
+                                            <option value="all">All Licensed Users</option>
+                                            <option value="specific">Specific User</option>
                                         </select>
                                         <small class="form-helper">Choose who will receive this notification</small>
                                     </div>
                                     <div class="form-group" id="specific-client-group" style="display: none;">
                                         <label for="notification-client-code">
                                             <span data-icon="key" style="display: inline-flex; align-items: center; margin-right: 6px;"></span>
-                                            Client Code
+                                            Client Code / Serial Number
                                         </label>
-                                        <input type="text" id="notification-client-code" placeholder="Enter 4-digit code" maxlength="4" pattern="[0-9]{4}">
-                                        <small class="form-helper">4-digit code of the specific client</small>
+                                        <input type="text" id="notification-client-code" placeholder="Enter 4-digit code or serial number" maxlength="20">
+                                        <small class="form-helper">4-digit client code or serial number of the specific user</small>
                                     </div>
                                 </div>
                                 <div class="form-group">

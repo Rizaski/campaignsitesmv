@@ -302,15 +302,15 @@ const pageTemplates = {
                 <h1>Pledge Tracker</h1>
                 <p class="page-subtitle">Track voter support pledges and commitments</p>
             </div>
-            <div style="display: flex; gap: 10px; align-items: center;">
-                <input type="text" placeholder="Search voters..." class="search-input" style="width: 200px;" id="pledge-search">
-                <select class="search-input" style="width: 140px;" id="pledge-filter">
+            <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap; min-width: 0;">
+                <input type="text" placeholder="Search voters..." class="search-input" style="width: 200px; min-width: 0; flex: 1 1 auto;" id="pledge-search">
+                <select class="search-input" style="width: 140px; min-width: 0; flex-shrink: 0;" id="pledge-filter">
                     <option value="">All Pledges</option>
                     <option value="yes">Yes</option>
                     <option value="no">No</option>
                     <option value="undecided">Undecided</option>
                 </select>
-                <button class="btn-primary btn-compact">
+                <button class="btn-primary btn-compact" style="flex-shrink: 0; white-space: nowrap;">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 6px; display: inline-block;"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
                     Add Pledge
                 </button>
@@ -1931,14 +1931,33 @@ function goToPage(tableType, page) {
     }
 
     const state = paginationState[tableType];
-    const totalRecords = getTotalRecordsForTable(tableType);
-    const totalPages = Math.ceil(totalRecords / state.recordsPerPage);
 
-    if (page < 1 || page > totalPages) return;
+    // Try to get total records from cache first
+    let totalRecords = getTotalRecordsForTable(tableType);
+    let totalPages = 0;
+
+    // If we have cached data, calculate total pages
+    if (totalRecords > 0) {
+        totalPages = Math.ceil(totalRecords / state.recordsPerPage);
+    }
+
+    // Validate page number
+    if (page < 1) page = 1;
+    if (totalPages > 0 && page > totalPages) page = totalPages;
 
     state.currentPage = page;
 
-    // Reload the table data with pagination
+    // Render functions that use cached data (faster)
+    const renderFunctions = {
+        'candidates': renderCachedCandidatesData,
+        'voters': renderCachedVotersData,
+        'events': renderCachedEventsData,
+        'calls': renderCachedCallsData,
+        'pledges': renderCachedPledgesData,
+        'agents': renderCachedAgentsData
+    };
+
+    // Data loaders (fallback if no cached data)
     const dataLoaders = {
         'candidates': loadCandidatesData,
         'voters': loadVotersData,
@@ -1948,9 +1967,21 @@ function goToPage(tableType, page) {
         'agents': loadAgentsData
     };
 
+    // First, try to use cached data if available
+    const renderFunc = renderFunctions[tableType];
+    if (renderFunc && typeof renderFunc === 'function') {
+        // Check if we have cached data
+        if (dataCache[tableType] && dataCache[tableType].data) {
+            // Use cached data - much faster
+            renderFunc();
+            return;
+        }
+    }
+
+    // Fallback: reload from Firestore if no cached data
     const loader = dataLoaders[tableType];
     if (loader && typeof loader === 'function') {
-        loader(true); // Force refresh
+        loader(false); // Don't force refresh, use cache if available
     }
 }
 
@@ -1967,6 +1998,14 @@ function getTotalRecordsForTable(tableType) {
         return data.pledges.length;
     } else if (data.calls && Array.isArray(data.calls)) {
         return data.calls.length;
+    } else if (data.events && Array.isArray(data.events)) {
+        return data.events.length;
+    } else if (data.candidates && Array.isArray(data.candidates)) {
+        return data.candidates.length;
+    } else if (data.agents && Array.isArray(data.agents)) {
+        return data.agents.length;
+    } else if (data.voters && Array.isArray(data.voters)) {
+        return data.voters.length;
     }
 
     return 0;
@@ -8028,9 +8067,19 @@ function updateNotificationsUI(snapshot) {
         return;
     }
 
+    // Clear existing notifications first to prevent duplicates
+    notificationList.innerHTML = '';
+
     // Use DocumentFragment for efficient DOM updates
     const fragment = document.createDocumentFragment();
+    const addedIds = new Set(); // Track IDs to prevent duplicates in the same render
+
     notifications.slice(0, 10).forEach(notification => {
+        // Skip if already added (safety check)
+        if (addedIds.has(notification.id)) {
+            return;
+        }
+        addedIds.add(notification.id);
         const createdAt = notification.createdAt ?
             (notification.createdAt.toDate ? notification.createdAt.toDate() : new Date(notification.createdAt)) :
             new Date();
@@ -8064,7 +8113,6 @@ function updateNotificationsUI(snapshot) {
         fragment.appendChild(notificationDiv);
     });
 
-    notificationList.innerHTML = '';
     notificationList.appendChild(fragment);
 
     // Reinitialize icons
@@ -8075,6 +8123,7 @@ function updateNotificationsUI(snapshot) {
 
 // Real-time notification listener - store globally so we can unsubscribe on logout
 window.notificationUnsubscribe = null;
+window.notificationsLoading = false; // Flag to prevent multiple simultaneous loads
 
 // Load notifications from Firebase
 async function loadNotifications() {
@@ -8091,6 +8140,14 @@ async function loadNotifications() {
     const notificationList = document.getElementById('notification-list');
     if (!notificationList) return;
 
+    // Prevent multiple simultaneous loads
+    if (window.notificationsLoading) {
+        console.log('[Notifications] Already loading, skipping duplicate call');
+        return;
+    }
+
+    window.notificationsLoading = true;
+
     try {
         const {
             collection,
@@ -8098,20 +8155,24 @@ async function loadNotifications() {
             where,
             orderBy,
             limit,
-            getDocs,
             onSnapshot
         } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
 
         // Unsubscribe from previous listener if exists
-        if (window.activeListeners.notifications) {
+        if (window.activeListeners && window.activeListeners.notifications) {
             try {
                 window.activeListeners.notifications();
+                delete window.activeListeners.notifications;
             } catch (error) {
                 console.warn('Error unsubscribing previous notification listener:', error);
             }
         }
         if (window.notificationUnsubscribe) {
-            window.notificationUnsubscribe();
+            try {
+                window.notificationUnsubscribe();
+            } catch (error) {
+                console.warn('Error unsubscribing notification listener:', error);
+            }
             window.notificationUnsubscribe = null;
         }
 
@@ -8129,22 +8190,60 @@ async function loadNotifications() {
             updateNotificationsUI(snapshot);
         }, 300); // Throttle to 300ms
 
+        // Track processed notification IDs to prevent duplicates
+        const processedNotificationIds = new Set();
+
         const unsubscribe = onSnapshot(notificationsQuery, (snapshot) => {
-            throttledUpdateNotifications(snapshot);
+            // Check if this is the initial snapshot or an update
+            const currentIds = new Set();
+            snapshot.forEach(doc => currentIds.add(doc.id));
+
+            // Only update if there are actual changes (new notifications or removed ones)
+            const hasChanges = currentIds.size !== processedNotificationIds.size ||
+                Array.from(currentIds).some(id => !processedNotificationIds.has(id)) ||
+                Array.from(processedNotificationIds).some(id => !currentIds.has(id));
+
+            if (hasChanges) {
+                processedNotificationIds.clear();
+                snapshot.forEach(doc => processedNotificationIds.add(doc.id));
+                throttledUpdateNotifications(snapshot);
+            }
         }, (error) => {
             console.error('Error listening to notifications:', error);
             // If index error, try fallback query without orderBy
             if (error.code === 'failed-precondition' && error.message && error.message.includes('index')) {
                 console.warn('Notification index missing, using fallback query without orderBy');
+
+                // Unsubscribe from the failed query first
+                try {
+                    unsubscribe();
+                } catch (e) {
+                    console.warn('Error unsubscribing failed query:', e);
+                }
+
                 const fallbackQuery = query(
                     collection(window.db, 'notifications'),
                     where('recipientEmail', '==', window.userEmail),
                     limit(10)
                 );
+
                 // Retry with fallback - also throttled
                 const fallbackUnsubscribe = onSnapshot(fallbackQuery, (snapshot) => {
-                    throttledUpdateNotifications(snapshot);
+                    const currentIds = new Set();
+                    snapshot.forEach(doc => currentIds.add(doc.id));
+
+                    const hasChanges = currentIds.size !== processedNotificationIds.size ||
+                        Array.from(currentIds).some(id => !processedNotificationIds.has(id)) ||
+                        Array.from(processedNotificationIds).some(id => !currentIds.has(id));
+
+                    if (hasChanges) {
+                        processedNotificationIds.clear();
+                        snapshot.forEach(doc => processedNotificationIds.add(doc.id));
+                        throttledUpdateNotifications(snapshot);
+                    }
                 });
+
+                window.activeListeners = window.activeListeners || {};
                 window.activeListeners.notifications = fallbackUnsubscribe;
                 window.notificationUnsubscribe = fallbackUnsubscribe;
                 return;
@@ -8153,40 +8252,18 @@ async function loadNotifications() {
             updateNotificationBadge(0);
         });
 
+        window.activeListeners = window.activeListeners || {};
         window.activeListeners.notifications = unsubscribe;
         window.notificationUnsubscribe = unsubscribe;
 
-        // Initial load using getDocs for immediate display (with cache)
-        try {
-            const snapshot = await getDocs(notificationsQuery);
-            updateNotificationsUI(snapshot);
-        } catch (queryError) {
-            // If query fails due to missing index, try without orderBy
-            if (queryError.code === 'failed-precondition' && queryError.message.includes('index')) {
-                console.warn('Notification index missing, using query without orderBy');
-                const fallbackQuery = query(
-                    collection(window.db, 'notifications'),
-                    where('recipientEmail', '==', window.userEmail),
-                    limit(10)
-                );
-                try {
-                    const snapshot = await getDocs(fallbackQuery);
-                    updateNotificationsUI(snapshot);
-                } catch (fallbackError) {
-                    console.error('Error loading notifications:', fallbackError);
-                    notificationList.innerHTML = '<div style="text-align: center; padding: 20px; color: rgba(255,255,255,0.7);"><p>Error loading notifications</p></div>';
-                    updateNotificationBadge(0);
-                }
-            } else {
-                console.error('Error loading notifications:', queryError);
-                notificationList.innerHTML = '<div style="text-align: center; padding: 20px; color: rgba(255,255,255,0.7);"><p>Error loading notifications</p></div>';
-                updateNotificationBadge(0);
-            }
-        }
+        // Note: onSnapshot will fire immediately with current data, so no need for initial getDocs call
+        // This prevents duplicate notifications from being displayed
     } catch (error) {
         console.error('Error loading notifications:', error);
         notificationList.innerHTML = '<div style="text-align: center; padding: 20px; color: rgba(255,255,255,0.7);"><p>Error loading notifications</p></div>';
         updateNotificationBadge(0);
+    } finally {
+        window.notificationsLoading = false;
     }
 }
 

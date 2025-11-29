@@ -2192,8 +2192,15 @@ async function sendNotification() {
     showLoading(true);
     const recipient = document.getElementById('notification-recipient').value;
     const clientCode = document.getElementById('notification-client-code').value;
-    const title = document.getElementById('notification-title').value;
-    const message = document.getElementById('notification-message').value;
+    const title = document.getElementById('notification-title').value.trim();
+    const message = document.getElementById('notification-message').value.trim();
+
+    // Validate inputs
+    if (!title || !message) {
+        showError('Please provide both title and message');
+        showLoading(false);
+        return;
+    }
 
     if (recipient === 'specific' && (!clientCode || clientCode.length !== 4)) {
         showError('Please enter a valid 4-digit client code');
@@ -2202,57 +2209,127 @@ async function sendNotification() {
     }
 
     try {
-        let targetClients = [];
+        let targetUsers = [];
 
         if (recipient === 'all') {
-            const clientsQuery = query(collection(db, 'clients'), where('licenseActive', '==', true), where('isActive', '!=', false));
-            const snapshot = await getDocs(clientsQuery);
+            // Get all licensed users (users with serialNumber and campaignSet)
+            const usersQuery = query(
+                collection(db, 'users'),
+                where('serialNumber', '!=', null)
+            );
+            const snapshot = await getDocs(usersQuery);
+
             snapshot.forEach(doc => {
-                targetClients.push({
-                    email: doc.id,
-                    ...doc.data()
-                });
+                const userData = doc.data();
+                // Only include users who have completed campaign setup
+                if (userData.serialNumber && userData.campaignSet) {
+                    targetUsers.push({
+                        email: doc.id,
+                        serialNumber: userData.serialNumber,
+                        clientCode: userData.clientCode || null,
+                        campaignName: userData.campaignName || null
+                    });
+                }
             });
         } else {
-            const codeQuery = query(collection(db, 'clients'), where('clientCode', '==', clientCode));
-            const snapshot = await getDocs(codeQuery);
-            if (!snapshot.empty) {
-                targetClients.push({
-                    email: snapshot.docs[0].id,
-                    ...snapshot.docs[0].data()
-                });
+            // Find user by client code
+            // First try to find in clients collection
+            const clientsQuery = query(collection(db, 'clients'), where('clientCode', '==', clientCode));
+            const clientsSnapshot = await getDocs(clientsQuery);
+
+            if (!clientsSnapshot.empty) {
+                const clientData = clientsSnapshot.docs[0].data();
+                const clientEmail = clientsSnapshot.docs[0].id;
+
+                // Check if user exists in users collection
+                const userRef = doc(db, 'users', clientEmail);
+                const userDoc = await getDoc(userRef);
+
+                if (userDoc.exists() && userDoc.data().serialNumber && userDoc.data().campaignSet) {
+                    targetUsers.push({
+                        email: clientEmail,
+                        serialNumber: userDoc.data().serialNumber,
+                        clientCode: clientCode,
+                        campaignName: userDoc.data().campaignName || null
+                    });
+                } else {
+                    // If user doesn't exist in users collection, use client data
+                    targetUsers.push({
+                        email: clientEmail,
+                        serialNumber: clientData.serialNumber || null,
+                        clientCode: clientCode,
+                        campaignName: clientData.campaignName || null
+                    });
+                }
+            } else {
+                // If not found in clients, try to find by serialNumber in users
+                const usersQuery = query(collection(db, 'users'), where('serialNumber', '==', clientCode));
+                const usersSnapshot = await getDocs(usersQuery);
+
+                if (!usersSnapshot.empty) {
+                    const userData = usersSnapshot.docs[0].data();
+                    if (userData.campaignSet) {
+                        targetUsers.push({
+                            email: usersSnapshot.docs[0].id,
+                            serialNumber: userData.serialNumber,
+                            clientCode: userData.clientCode || null,
+                            campaignName: userData.campaignName || null
+                        });
+                    }
+                }
             }
         }
 
-        if (targetClients.length === 0) {
-            showError('No clients found to send notification to');
+        if (targetUsers.length === 0) {
+            showError('No licensed users found to send notification to');
             showLoading(false);
             return;
         }
 
         // Create notifications
-        for (const client of targetClients) {
-            await addDoc(collection(db, 'notifications'), {
-                recipientEmail: client.email,
-                recipientCode: client.clientCode,
+        const notificationPromises = [];
+        for (const user of targetUsers) {
+            const notificationData = {
+                recipientEmail: user.email,
+                recipientCode: user.clientCode || user.serialNumber || null,
                 title,
                 message,
                 read: false,
                 createdAt: serverTimestamp(),
-                sentBy: currentAdmin.email
-            });
+                sentBy: currentAdmin.email,
+                type: 'admin_notification'
+            };
+
+            notificationPromises.push(addDoc(collection(db, 'notifications'), notificationData));
         }
 
-        await logAdminAction('notification_sent', `Sent notification to ${targetClients.length} client(s)`, {
+        // Wait for all notifications to be created
+        await Promise.all(notificationPromises);
+
+        await logAdminAction('notification_sent', `Sent notification to ${targetUsers.length} user(s)`, {
             recipient,
-            count: targetClients.length
+            count: targetUsers.length,
+            title: title.substring(0, 50) // Log first 50 chars of title
         });
 
-        showSuccess(`Notification sent to ${targetClients.length} client(s) successfully!`);
+        showSuccess(`Notification sent to ${targetUsers.length} user(s) successfully!`);
         document.getElementById('send-notification-form').reset();
     } catch (error) {
         console.error('Error sending notification:', error);
-        showError('Failed to send notification. Please try again.');
+        console.error('Error details:', {
+            code: error.code,
+            message: error.message,
+            stack: error.stack
+        });
+
+        let errorMessage = 'Failed to send notification. Please try again.';
+        if (error.code === 'permission-denied') {
+            errorMessage = 'Permission denied. Please check Firestore rules for notifications collection.';
+        } else if (error.message) {
+            errorMessage = `Failed to send notification: ${error.message}`;
+        }
+
+        showError(errorMessage);
     } finally {
         showLoading(false);
     }

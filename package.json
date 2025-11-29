@@ -1,0 +1,12 @@
+{
+    "name": "campaign-pro",
+    "version": "1.0.0",
+    "description": "Political Election Campaign Management System",
+    "scripts": {
+        "build": "node build-config.js",
+        "dev": "python server.py"
+    },
+    "keywords": ["campaign", "election", "management"],
+    "author": "",
+    "license": "ISC"
+}

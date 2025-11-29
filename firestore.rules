@@ -114,6 +114,9 @@ service cloud.firestore {
       // Admin has full access
       allow read, write: if isAdmin();
       
+      // Admin can create notifications
+      allow create: if isAdmin();
+      
       // Clients can read their own notifications
       allow read: if request.auth != null && 
                    resource.data.recipientEmail == request.auth.token.email;
@@ -128,8 +131,8 @@ service cloud.firestore {
                      resource != null &&
                      resource.data.recipientEmail == request.auth.token.email;
       
-      // Clients cannot create notifications (only admin can)
-      allow create: if false;
+      // Allow list operations for queries and snapshot listeners
+      allow list: if request.auth != null;
     }
     
     // Admin logs collection - only admin can access
