@@ -333,6 +333,11 @@ service cloud.firestore {
       // This allows the link access page to verify the link and access code
       allow read: if request.auth == null;
       
+      // Allow anonymous users (signed in but no email) to read call links
+      // This allows the call recording page to validate links after anonymous sign-in
+      allow read: if request.auth != null && 
+                   (request.auth.token.email == null || request.auth.token.email == '');
+      
       // Campaign managers can read their own call links
       allow read: if request.auth != null && 
                    (resource != null && resource.data.campaignEmail == request.auth.token.email);

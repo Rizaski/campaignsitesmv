@@ -129,11 +129,42 @@ async function validateAccessCode(accessCode) {
         console.log('[Call Recording] Validating access code:', accessCode);
 
         // Get the call link document
+        console.log('[Call Recording] Attempting to read callLink with ID:', linkId);
+        console.log('[Call Recording] Current auth state:', auth.currentUser ? {
+            uid: auth.currentUser.uid,
+            isAnonymous: auth.currentUser.isAnonymous,
+            email: auth.currentUser.email
+        } : 'Not authenticated');
+
         const linkRef = doc(db, 'callLinks', linkId);
-        const linkSnap = await getDoc(linkRef);
+        let linkSnap;
+
+        try {
+            linkSnap = await getDoc(linkRef);
+        } catch (error) {
+            console.error('[Call Recording] Error reading callLink:', error);
+            console.error('[Call Recording] Error code:', error.code);
+            console.error('[Call Recording] Error message:', error.message);
+
+            if (error.code === 'permission-denied') {
+                hideLoading();
+                showAccessCodeModal();
+                showAccessCodeError('Permission denied. Please check Firestore rules or try again.');
+                return;
+            } else {
+                hideLoading();
+                showAccessCodeModal();
+                showAccessCodeError('Failed to validate link. Please check your connection and try again.');
+                return;
+            }
+        }
 
         if (!linkSnap.exists()) {
             console.error('[Call Recording] Link not found:', linkId);
+            console.error('[Call Recording] This could be due to:');
+            console.error('  1. Link ID is incorrect');
+            console.error('  2. Link was deleted');
+            console.error('  3. Firestore permission issue');
             hideLoading();
             showAccessCodeModal();
             showAccessCodeError('Invalid link. The link may have been deleted or expired.');
