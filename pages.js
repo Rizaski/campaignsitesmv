@@ -2171,37 +2171,47 @@ const debouncedRefresh = debounce((tableType) => {
     console.log(`[Real-time Sync] Refreshing ${tableType} table...`);
     clearCache(tableType);
 
-    // Refresh the appropriate table based on current section
+    // Always refresh the table if it's currently visible, regardless of section name
     const currentSection = window.currentSection || '';
-    if (currentSection === tableType || currentSection === tableType.slice(0, -1)) {
+    const shouldRefresh = currentSection === tableType ||
+        currentSection === tableType.slice(0, -1) ||
+        document.getElementById(`${tableType}-table-body`) !== null ||
+        document.getElementById(`${tableType.slice(0, -1)}-table-body`) !== null;
+
+    if (shouldRefresh) {
+        console.log(`[Real-time Sync] Table ${tableType} is visible, refreshing...`);
         switch (tableType) {
             case 'candidates':
-                loadCandidatesData(true);
+                if (typeof loadCandidatesData === 'function') loadCandidatesData(true);
                 break;
             case 'voters':
-                loadVotersData(true);
+                if (typeof loadVotersData === 'function') loadVotersData(true);
                 break;
             case 'events':
-                loadEventsData(true);
+                if (typeof loadEventsData === 'function') loadEventsData(true);
                 break;
             case 'calls':
-                loadCallsData(true);
+                if (typeof loadCallsData === 'function') loadCallsData(true);
                 break;
             case 'pledges':
-                loadPledgesData(true);
+                if (typeof loadPledgesData === 'function') loadPledgesData(true);
                 break;
             case 'agents':
-                loadAgentsData(true);
+                if (typeof loadAgentsData === 'function') loadAgentsData(true);
                 break;
         }
+    } else {
+        console.log(`[Real-time Sync] Table ${tableType} not visible, skipping refresh`);
     }
 
     // Always refresh activities when any data changes
     if (tableType !== 'activities') {
         clearCache('activities');
-        loadRecentActivities(true);
+        if (typeof loadRecentActivities === 'function') {
+            loadRecentActivities(true);
+        }
     }
-}, 500);
+}, 300); // Reduced debounce time for faster updates
 
 // Setup real-time listener for a collection
 async function setupRealtimeListener(collectionName, tableType) {
@@ -2211,9 +2221,10 @@ async function setupRealtimeListener(collectionName, tableType) {
     }
 
     // Ensure user is authenticated before setting up listeners
-    if (!window.auth || !window.auth.currentUser) {
-        console.warn(`[Real-time Sync] Cannot setup listener for ${tableType}: user not authenticated`);
-        return;
+    // Check auth if available, but don't block if auth object doesn't exist yet
+    if (window.auth && !window.auth.currentUser) {
+        console.warn(`[Real-time Sync] User not authenticated for ${tableType}, but continuing anyway (auth may be set up later)`);
+        // Don't return - continue setting up listener as Firestore rules will handle auth
     }
 
     // Clean up existing listener if it exists
@@ -2248,7 +2259,21 @@ async function setupRealtimeListener(collectionName, tableType) {
                 // Skip processing initial load (we already have data from initial fetch)
                 if (isInitialLoad) {
                     isInitialLoad = false;
-                    console.log(`[Real-time Sync] ${tableType} initial snapshot received (${snapshot.size} items)`);
+                    console.log(`[Real-time Sync] ${tableType} initial snapshot received (${snapshot.size} items) - listener is now active`);
+                    // Don't return - process initial snapshot to ensure cache is up to date
+                    // But don't trigger UI refresh on initial load
+                    const dataArray = [];
+                    snapshot.forEach(doc => {
+                        dataArray.push({
+                            id: doc.id,
+                            ...doc.data()
+                        });
+                    });
+                    if (dataCache[tableType]) {
+                        dataCache[tableType].data = dataArray;
+                        dataCache[tableType].timestamp = Date.now();
+                        dataCache[tableType].userEmail = window.userEmail;
+                    }
                     return;
                 }
 
@@ -2301,8 +2326,38 @@ async function setupRealtimeListener(collectionName, tableType) {
                     console.log(`[Real-time Sync] ${tableType} cache updated with ${dataArray.length} items`);
                 }
 
-                // Refresh UI if table is currently visible
+                // Always refresh UI - debouncedRefresh will check if table is visible
+                console.log(`[Real-time Sync] Triggering refresh for ${tableType}...`);
                 debouncedRefresh(tableType);
+
+                // Also force immediate refresh if table is definitely visible (bypass debounce for critical updates)
+                const tableBody = document.getElementById(`${tableType}-table-body`) ||
+                    document.getElementById(`${tableType.slice(0, -1)}-table-body`);
+                if (tableBody && tableBody.offsetParent !== null) {
+                    // Table is visible, refresh immediately
+                    setTimeout(() => {
+                        switch (tableType) {
+                            case 'voters':
+                                if (typeof loadVotersData === 'function') loadVotersData(true);
+                                break;
+                            case 'calls':
+                                if (typeof loadCallsData === 'function') loadCallsData(true);
+                                break;
+                            case 'pledges':
+                                if (typeof loadPledgesData === 'function') loadPledgesData(true);
+                                break;
+                            case 'events':
+                                if (typeof loadEventsData === 'function') loadEventsData(true);
+                                break;
+                            case 'agents':
+                                if (typeof loadAgentsData === 'function') loadAgentsData(true);
+                                break;
+                            case 'candidates':
+                                if (typeof loadCandidatesData === 'function') loadCandidatesData(true);
+                                break;
+                        }
+                    }, 100);
+                }
 
                 // Also refresh activities when any data changes
                 if (tableType !== 'activities') {

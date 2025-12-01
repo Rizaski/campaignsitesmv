@@ -434,6 +434,7 @@ let userSerialNumber = null;
 window.userEmail = userEmail;
 window.campaignData = campaignData;
 window.db = db;
+window.auth = auth;
 window.maldivesData = maldivesData;
 
 // Utility Functions
