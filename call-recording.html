@@ -143,17 +143,22 @@
                             <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
                         </svg>
                     </div>
-                    <h2 style="margin: 0 0 8px 0; font-size: 24px; font-weight: 700; color: var(--text-color); letter-spacing: -0.02em; font-family: 'Poppins', sans-serif;">Enter Access Code</h2>
-                    <p style="margin: 0; color: var(--text-light); font-size: 14px; font-weight: 500; font-family: 'Poppins', sans-serif;">Please enter the 6-digit access code to continue</p>
+                    <h2 style="margin: 0 0 8px 0; font-size: 24px; font-weight: 700; color: var(--text-color); letter-spacing: -0.02em; font-family: 'Poppins', sans-serif;">Login to Call Recording</h2>
+                    <p style="margin: 0; color: var(--text-light); font-size: 14px; font-weight: 500; font-family: 'Poppins', sans-serif;">Enter campaign manager email and temporary password</p>
                 </div>
                 <form id="access-code-form">
                     <div class="form-group" style="margin-bottom: 16px;">
-                        <input type="text" id="access-code-input" class="access-code-input" placeholder="000000" maxlength="6" pattern="[0-9]{6}" required style="width: 100%; padding: 18px; border: 2px solid var(--border-color); border-radius: 12px; font-size: 24px; text-align: center; letter-spacing: 12px; font-weight: 600; font-family: 'Poppins', sans-serif; background: var(--white); transition: var(--transition);">
+                        <label for="login-email" style="display: block; font-size: 13px; font-weight: 600; color: var(--text-color); margin-bottom: 8px;">Campaign Manager Email *</label>
+                        <input type="email" id="login-email" placeholder="email@example.com" required style="width: 100%; padding: 14px 16px; border: 2px solid var(--border-color); border-radius: 12px; font-size: 14px; font-family: 'Poppins', sans-serif; background: var(--white); transition: var(--transition); box-sizing: border-box;">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 16px;">
+                        <label for="login-password" style="display: block; font-size: 13px; font-weight: 600; color: var(--text-color); margin-bottom: 8px;">Temporary Password *</label>
+                        <input type="password" id="login-password" placeholder="Enter temporary password" required style="width: 100%; padding: 14px 16px; border: 2px solid var(--border-color); border-radius: 12px; font-size: 14px; font-family: 'Poppins', sans-serif; background: var(--white); transition: var(--transition); box-sizing: border-box;">
                     </div>
                     <div id="access-code-error" class="error-message" style="display: none; margin-top: 12px; margin-bottom: 16px; padding: 12px; background: rgba(220, 38, 38, 0.1); border-left: 3px solid var(--danger-color); border-radius: 8px; color: var(--danger-color); font-size: 13px; font-weight: 500;"></div>
                     <div class="modal-footer" style="display: flex; gap: 12px;">
                         <button type="button" class="btn-secondary btn-compact" onclick="window.location.href='index.html'" style="flex: 1; padding: 14px; font-weight: 600;">Cancel</button>
-                        <button type="submit" class="btn-primary btn-compact" style="flex: 1; padding: 14px; font-weight: 600; background: var(--gradient-primary);">Verify</button>
+                        <button type="submit" class="btn-primary btn-compact" style="flex: 1; padding: 14px; font-weight: 600; background: var(--gradient-primary);">Login</button>
                     </div>
                 </form>
             </div>

@@ -12988,8 +12988,8 @@ async function generateCallLink() {
     errorDiv.style.display = 'none';
 
     try {
-        // Generate access code (6-digit random number)
-        const accessCode = Math.floor(100000 + Math.random() * 900000).toString();
+        // Generate temporary password (8-12 characters, alphanumeric)
+        const tempPassword = Math.random().toString(36).slice(2, 12) + Math.random().toString(36).slice(2, 6).toUpperCase();
 
         // Generate unique link ID
         const linkId = `call_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -13004,7 +13004,7 @@ async function generateCallLink() {
         // Create link document
         const linkData = {
             linkId: linkId,
-            accessCode: accessCode,
+            tempPassword: tempPassword, // Store temporary password
             callerNames: callerNamesList,
             campaignEmail: window.userEmail,
             createdAt: serverTimestamp(),
@@ -13050,8 +13050,8 @@ async function generateCallLink() {
             window.closeModal();
         }
 
-        // Show results in a new modal
-        showCallLinkResultsModal(linkUrl, accessCode);
+        // Show results in a new modal (include temp password)
+        showCallLinkResultsModal(linkUrl, tempPassword);
 
         // Reload history
         await loadCallLinksHistory();
@@ -13127,7 +13127,6 @@ async function loadCallLinksHistory() {
                         <th style="text-align: left; padding: 12px; font-size: 13px; font-weight: 600; color: var(--text-color);">Callers</th>
                         <th style="text-align: left; padding: 12px; font-size: 13px; font-weight: 600; color: var(--text-color);">Date & Time</th>
                         <th style="text-align: center; padding: 12px; font-size: 13px; font-weight: 600; color: var(--text-color);">Calls</th>
-                        <th style="text-align: center; padding: 12px; font-size: 13px; font-weight: 600; color: var(--text-color);">Code</th>
                         <th style="text-align: center; padding: 12px; font-size: 13px; font-weight: 600; color: var(--text-color);">Action</th>
                     </tr>
                 </thead>
@@ -13163,7 +13162,6 @@ async function loadCallLinksHistory() {
                             '<td style="padding: 12px; font-size: 13px;">' + callerNamesStr + '</td>' +
                             '<td style="padding: 12px; font-size: 13px; color: var(--text-light);">' + dateStr + '</td>' +
                             '<td style="padding: 12px; text-align: center; font-size: 13px; font-weight: 600; color: var(--primary-color);">' + (link.callsMade || 0) + '</td>' +
-                            '<td style="padding: 12px; text-align: center; font-size: 13px; font-family: monospace; color: var(--text-color);">' + (link.accessCode || 'N/A') + '</td>' +
                             '<td style="padding: 12px; text-align: center;">' +
                             '<button onclick="deleteCallLink(\'' + deleteId.replace(/'/g, "\\'") + '\')" class="btn-danger btn-compact" style="padding: 6px 12px; font-size: 12px;">Delete</button>' +
                             '</td>' +
@@ -13272,7 +13270,7 @@ async function deleteCallLink(linkId) {
 }
 
 // Show call link results modal
-function showCallLinkResultsModal(linkUrl, accessCode) {
+function showCallLinkResultsModal(linkUrl, tempPassword) {
     const modalOverlay = window.ensureModalExists ? window.ensureModalExists() : null;
     if (!modalOverlay) {
         window.showError('Modal system not available.');
@@ -13315,19 +13313,21 @@ function showCallLinkResultsModal(linkUrl, accessCode) {
             </div>
 
             <div style="background: var(--light-color); padding: 16px; border-radius: 12px; margin-bottom: 16px;">
-                <label style="display: block; font-size: 12px; font-weight: 600; color: var(--text-light); margin-bottom: 8px;">Access Code:</label>
+                <label style="display: block; font-size: 12px; font-weight: 600; color: var(--text-light); margin-bottom: 8px;">Temporary Password:</label>
                 <div style="display: flex; gap: 8px; align-items: center;">
-                    <input type="text" id="generated-code-input-modal" value="${accessCode}" readonly style="flex: 1; padding: 12px; border: 2px solid var(--border-color); border-radius: 8px; background: white; font-size: 18px; font-family: monospace; font-weight: 600; text-align: center; letter-spacing: 3px; cursor: text;">
-                    <button onclick="copyCallCodeFromModal()" class="btn-primary btn-compact" style="padding: 12px 20px; white-space: nowrap;">
+                    <input type="text" id="generated-password-input-modal" value="${tempPassword}" readonly style="flex: 1; padding: 12px; border: 2px solid var(--border-color); border-radius: 8px; background: white; font-size: 14px; font-family: monospace; font-weight: 600; cursor: text;">
+                    <button onclick="copyCallPasswordFromModal()" class="btn-primary btn-compact" style="padding: 12px 20px; white-space: nowrap;">
                         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 6px; display: inline-block; vertical-align: middle;">
                             <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
                             <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
                         </svg>
-                        Copy Code
+                        Copy Password
                     </button>
                 </div>
-                <p style="font-size: 11px; color: var(--text-light); margin-top: 10px; margin-bottom: 0; line-height: 1.5;">
-                    <strong>Important:</strong> Share this access code separately from the link. Users will need to enter it when accessing the link.
+            </div>
+            <div style="background: rgba(111, 193, 218, 0.1); padding: 16px; border-radius: 12px; border-left: 4px solid var(--primary-color); margin-bottom: 16px;">
+                <p style="font-size: 12px; color: var(--text-color); margin: 0; line-height: 1.6;">
+                    <strong>Instructions:</strong> Share the link and temporary password with your callers. They will need to enter the campaign manager email and temporary password to access the call recording page.
                 </p>
             </div>
         </div>
@@ -13379,6 +13379,23 @@ async function copyCallLinkFromModal() {
 }
 
 // Copy call code from modal
+async function copyCallPasswordFromModal() {
+    const passwordInput = document.getElementById('generated-password-input-modal');
+    if (passwordInput && passwordInput.value) {
+        try {
+            await navigator.clipboard.writeText(passwordInput.value);
+            window.showSuccess('Temporary password copied to clipboard!', 'Copied');
+        } catch (error) {
+            console.error('Error copying password:', error);
+            // Fallback: select text
+            passwordInput.select();
+            passwordInput.setSelectionRange(0, 99999);
+            document.execCommand('copy');
+            window.showSuccess('Password selected. Press Ctrl+C to copy.', 'Selected');
+        }
+    }
+}
+
 async function copyCallCodeFromModal() {
     const codeInput = document.getElementById('generated-code-input-modal');
     if (codeInput && codeInput.value) {
@@ -13399,6 +13416,7 @@ async function copyCallCodeFromModal() {
 window.openCallLinkModal = openCallLinkModal;
 window.addCallerName = addCallerName;
 window.removeCallerName = removeCallerName;
+window.copyCallPasswordFromModal = copyCallPasswordFromModal;
 window.deleteCallLink = deleteCallLink;
 window.copyCallLinkFromModal = copyCallLinkFromModal;
 window.copyCallCodeFromModal = copyCallCodeFromModal;

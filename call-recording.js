@@ -17,7 +17,8 @@ import {
 } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
 import {
     getAuth,
-    signInAnonymously
+    signInWithEmailAndPassword,
+    createUserWithEmailAndPassword
 } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
 import {
     getFirestore,
@@ -43,37 +44,33 @@ let linkId = null;
 const urlParams = new URLSearchParams(window.location.search);
 linkId = urlParams.get('linkId');
 
+// Log for debugging
+if (linkId) {
+    console.log('[Call Recording] Initial linkId from URL:', linkId);
+} else {
+    console.warn('[Call Recording] No linkId found in URL on initialization');
+    console.warn('[Call Recording] Current URL:', window.location.href);
+}
+
 // Initialize call recording portal
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('[Call Recording] Initializing...');
     console.log('[Call Recording] Link ID from URL:', linkId);
+
+    // Hide loading screen initially, show access code modal first
+    hideLoading();
+    showAccessCodeModal();
+
+    // Small delay to ensure modal is rendered before showing errors
+    await new Promise(resolve => setTimeout(resolve, 100));
 
     if (!linkId) {
         showAccessCodeError('Invalid link. No link ID found.');
         return;
     }
 
-    // Sign in anonymously for Firestore access (required for voter queries)
-    try {
-        const userCredential = await signInAnonymously(auth);
-        console.log('[Call Recording] Anonymous authentication successful', {
-            uid: userCredential.user.uid,
-            isAnonymous: userCredential.user.isAnonymous
-        });
-    } catch (error) {
-        console.error('[Call Recording] Error signing in anonymously:', error);
-        // Show error to user if anonymous auth fails
-        if (error.code === 'auth/operation-not-allowed') {
-            showAccessCodeError('Authentication is not enabled. Please contact your administrator.');
-        } else {
-            showAccessCodeError('Failed to initialize. Please check your connection and try again.');
-        }
-        return;
-    }
-
-    // Hide loading screen initially, show access code modal
-    hideLoading();
-    showAccessCodeModal();
+    // No need for anonymous authentication - we'll use email/password authentication
+    console.log('[Call Recording] Waiting for user to enter credentials...');
 });
 
 // Show loading screen
@@ -105,28 +102,58 @@ function updateLoadingProgress(percent, subtitle = null) {
     }
 }
 
-// Validate access code and load link data
-async function validateAccessCode(accessCode) {
+// Validate credentials and load link data
+async function validateAccessCode(email, password) {
     try {
-        updateLoadingProgress(20, 'Validating access code...');
+        updateLoadingProgress(20, 'Validating credentials...');
 
-        // Trim and normalize the code
-        if (accessCode && typeof accessCode === 'string') {
-            accessCode = accessCode.trim();
-        }
-
-        // Convert to string if it's a number
-        accessCode = String(accessCode);
-
-        // Validate code format (6 digits)
-        if (!accessCode || accessCode.length !== 6 || !/^\d{6}$/.test(accessCode)) {
+        // Validate email
+        if (!email || typeof email !== 'string' || email.trim() === '') {
             hideLoading();
             showAccessCodeModal();
-            showAccessCodeError('Please enter a valid 6-digit access code.');
+            showAccessCodeError('Please enter a valid email address.');
+            return;
+        }
+        email = email.trim().toLowerCase();
+
+        // Validate password
+        if (!password || typeof password !== 'string' || password.trim() === '') {
+            hideLoading();
+            showAccessCodeModal();
+            showAccessCodeError('Please enter the temporary password.');
+            return;
+        }
+        password = password.trim();
+
+        console.log('[Call Recording] Validating credentials for email:', email);
+
+        // Ensure linkId is available (re-read from URL if needed, or use from currentLinkData)
+        if (!linkId) {
+            // Try to get from currentLinkData first
+            if (currentLinkData && currentLinkData.linkId) {
+                linkId = currentLinkData.linkId;
+                console.log('[Call Recording] Using linkId from currentLinkData:', linkId);
+            } else {
+                // Fallback to reading from URL
+                const urlParams = new URLSearchParams(window.location.search);
+                linkId = urlParams.get('linkId');
+                console.log('[Call Recording] Re-read linkId from URL:', linkId);
+            }
+        }
+
+        // Validate linkId exists and is valid
+        if (!linkId || typeof linkId !== 'string' || linkId.trim() === '') {
+            console.error('[Call Recording] No linkId available or invalid');
+            console.error('[Call Recording] linkId value:', linkId);
+            console.error('[Call Recording] linkId type:', typeof linkId);
+            hideLoading();
+            showAccessCodeModal();
+            showAccessCodeError('Invalid link. No link ID found in URL. Please check the link and try again.');
             return;
         }
 
-        console.log('[Call Recording] Validating access code:', accessCode);
+        // Trim linkId to remove any whitespace
+        linkId = linkId.trim();
 
         // Get the call link document
         console.log('[Call Recording] Attempting to read callLink with ID:', linkId);
@@ -174,19 +201,61 @@ async function validateAccessCode(accessCode) {
         const linkData = linkSnap.data();
         console.log('[Call Recording] Link data retrieved');
 
-        // Verify access code
-        if (linkData.accessCode !== accessCode) {
-            console.error('[Call Recording] Invalid access code');
+        // Verify email matches campaign email
+        const campaignEmail = (linkData.campaignEmail || '').trim().toLowerCase();
+        if (email !== campaignEmail) {
+            console.error('[Call Recording] Email mismatch. Expected:', campaignEmail, 'Got:', email);
             hideLoading();
             showAccessCodeModal();
-            showAccessCodeError('Invalid access code. Please check and try again.');
+            showAccessCodeError('Email does not match the campaign manager email for this link.');
+            return;
+        }
+
+        // Verify temporary password
+        if (!linkData.tempPassword || linkData.tempPassword !== password) {
+            console.error('[Call Recording] Invalid temporary password');
+            hideLoading();
+            showAccessCodeModal();
+            showAccessCodeError('Invalid temporary password. Please check and try again.');
+            return;
+        }
+
+        console.log('[Call Recording] All credentials verified. Authenticating...');
+
+        // Authenticate with email and password
+        try {
+            updateLoadingProgress(40, 'Authenticating...');
+            // Try to sign in first
+            try {
+                await signInWithEmailAndPassword(auth, email, password);
+                console.log('[Call Recording] Signed in with existing account');
+            } catch (signInError) {
+                // If user doesn't exist, create account
+                if (signInError.code === 'auth/user-not-found') {
+                    console.log('[Call Recording] User not found, creating account...');
+                    await createUserWithEmailAndPassword(auth, email, password);
+                    console.log('[Call Recording] Account created and signed in');
+                } else {
+                    throw signInError;
+                }
+            }
+        } catch (authError) {
+            console.error('[Call Recording] Authentication error:', authError);
+            hideLoading();
+            showAccessCodeModal();
+            if (authError.code === 'auth/wrong-password') {
+                showAccessCodeError('Incorrect password. Please check and try again.');
+            } else if (authError.code === 'auth/invalid-email') {
+                showAccessCodeError('Invalid email address.');
+            } else {
+                showAccessCodeError('Authentication failed: ' + (authError.message || authError.code || 'Unknown error'));
+            }
             return;
         }
 
         // Store link data globally
         currentLinkData = {
             linkId: linkId,
-            accessCode: accessCode,
             callerNames: linkData.callerNames || [],
             campaignEmail: linkData.campaignEmail
         };
@@ -354,7 +423,71 @@ async function setupVoterSearch() {
     if (!voterInput || !voterDropdown) return;
 
     // Load all voters for the campaign
-    await loadVotersForCall();
+    console.log('[Call Recording] Starting to load voters...');
+    try {
+        await loadVotersForCall();
+        console.log('[Call Recording] Voters loaded. Total:', allVotersForCall.length);
+
+        if (allVotersForCall.length === 0) {
+            console.warn('[Call Recording] WARNING: No voters loaded. Search will not work.');
+            // Update placeholder to indicate no voters
+            const voterInputEl = document.getElementById('call-voter-name');
+            if (voterInputEl) {
+                voterInputEl.placeholder = 'No voters found for this campaign. Check campaign email matches.';
+                voterInputEl.disabled = true;
+                voterInputEl.style.cursor = 'not-allowed';
+            }
+            // Show a visible message to the user
+            const formGroup = voterInput.parentElement;
+            if (formGroup) {
+                const errorMsg = document.createElement('div');
+                errorMsg.id = 'voter-load-error';
+                errorMsg.style.cssText = 'color: var(--danger-color); font-size: 12px; margin-top: 5px; padding: 8px; background: rgba(220, 38, 38, 0.1); border-radius: 4px;';
+                errorMsg.textContent = 'No voters found for this campaign. Please verify the campaign email matches your voter database.';
+                formGroup.appendChild(errorMsg);
+            }
+        } else {
+            // Reset placeholder if voters loaded successfully
+            const voterInputEl = document.getElementById('call-voter-name');
+            if (voterInputEl) {
+                voterInputEl.placeholder = 'Search voter by name, ID, phone...';
+                voterInputEl.disabled = false;
+                voterInputEl.style.cursor = 'text';
+            }
+            // Remove any error messages
+            const errorMsg = document.getElementById('voter-load-error');
+            if (errorMsg) {
+                errorMsg.remove();
+            }
+        }
+    } catch (error) {
+        console.error('[Call Recording] Failed to load voters:', error);
+        console.error('[Call Recording] Error stack:', error.stack);
+
+        const voterInputEl = document.getElementById('call-voter-name');
+        if (voterInputEl) {
+            voterInputEl.placeholder = 'Error loading voters. Check console (F12) for details.';
+            voterInputEl.disabled = true;
+            voterInputEl.style.cursor = 'not-allowed';
+        }
+
+        // Show error message to user
+        const voterInputForError = document.getElementById('call-voter-name');
+        const formGroup = voterInputForError.parentElement;
+        if (formGroup) {
+            // Remove any existing error message
+            const existingError = document.getElementById('voter-load-error');
+            if (existingError) {
+                existingError.remove();
+            }
+
+            const errorMsg = document.createElement('div');
+            errorMsg.id = 'voter-load-error';
+            errorMsg.style.cssText = 'color: var(--danger-color); font-size: 12px; margin-top: 5px; padding: 8px; background: rgba(220, 38, 38, 0.1); border-radius: 4px;';
+            errorMsg.innerHTML = `<strong>Error loading voters:</strong> ${error.message || 'Unknown error'}. <br>Please check the browser console (F12) for more details.`;
+            formGroup.appendChild(errorMsg);
+        }
+    }
 
     // Debounce function for search
     let searchTimeout;
@@ -370,9 +503,22 @@ async function setupVoterSearch() {
     function filterVoters(searchTerm) {
         console.log('[Call Recording] Filtering voters with term:', searchTerm);
         console.log('[Call Recording] Total voters available:', allVotersForCall.length);
+        console.log('[Call Recording] Voter dropdown element:', voterDropdown);
+
+        if (!voterDropdown) {
+            console.error('[Call Recording] Voter dropdown element not found!');
+            return;
+        }
 
         if (!searchTerm || searchTerm.trim() === '') {
             voterDropdown.style.display = 'none';
+            return;
+        }
+
+        if (allVotersForCall.length === 0) {
+            console.warn('[Call Recording] No voters loaded. Showing message.');
+            voterDropdown.innerHTML = '<div style="padding: 15px; text-align: center; color: var(--text-light);">No voters available. Please wait for voters to load...</div>';
+            voterDropdown.style.display = 'block';
             return;
         }
 
@@ -394,8 +540,9 @@ async function setupVoterSearch() {
         console.log('[Call Recording] Filtered voters:', filtered.length);
 
         if (filtered.length === 0) {
-            voterDropdown.innerHTML = '<div style="padding: 15px; text-align: center; color: var(--text-light);">No voters found</div>';
+            voterDropdown.innerHTML = '<div style="padding: 15px; text-align: center; color: var(--text-light);">No voters found matching "' + searchTerm + '"</div>';
             voterDropdown.style.display = 'block';
+            voterDropdown.style.zIndex = '10000';
             return;
         }
 
@@ -454,6 +601,8 @@ async function setupVoterSearch() {
         });
 
         voterDropdown.style.display = 'block';
+        voterDropdown.style.zIndex = '10000';
+        console.log('[Call Recording] Dropdown displayed with', filtered.length, 'results');
     }
 
     // Search input handler with debounce
@@ -465,9 +614,13 @@ async function setupVoterSearch() {
     const updatedVoterInput = document.getElementById('call-voter-name');
 
     if (updatedVoterInput) {
+        console.log('[Call Recording] Setting up event listeners on voter input');
+
         updatedVoterInput.addEventListener('input', (e) => {
-            console.log('[Call Recording] Search input changed:', e.target.value);
-            debouncedFilter(e.target.value);
+            const value = e.target.value;
+            console.log('[Call Recording] Search input changed:', value);
+            console.log('[Call Recording] Voters available:', allVotersForCall.length);
+            debouncedFilter(value);
         });
 
         updatedVoterInput.addEventListener('focus', () => {
@@ -476,6 +629,13 @@ async function setupVoterSearch() {
                 filterVoters(updatedVoterInput.value);
             }
         });
+
+        updatedVoterInput.addEventListener('keydown', (e) => {
+            // Allow typing
+            console.log('[Call Recording] Key pressed in voter input:', e.key);
+        });
+    } else {
+        console.error('[Call Recording] Updated voter input element not found after cloning!');
     }
 
     // Close dropdown when clicking outside
@@ -505,7 +665,11 @@ async function loadVotersForCall() {
             return;
         }
 
-        console.log('[Call Recording] Loading voters for campaign:', currentLinkData.campaignEmail);
+        const campaignEmail = currentLinkData.campaignEmail;
+        console.log('[Call Recording] Loading voters for campaign:', campaignEmail);
+        console.log('[Call Recording] Campaign email type:', typeof campaignEmail);
+        console.log('[Call Recording] Campaign email length:', campaignEmail ? campaignEmail.length : 0);
+        console.log('[Call Recording] Campaign email trimmed:', campaignEmail ? campaignEmail.trim() : 'null');
 
         const {
             collection,
@@ -514,40 +678,191 @@ async function loadVotersForCall() {
             getDocs
         } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
 
+        // Build query to get voters for this campaign
+        // Note: This query requires a Firestore index on campaignEmail if not already created
+        // Also try querying by 'email' field as fallback since some voters might use that field
+        const trimmedCampaignEmail = campaignEmail ? campaignEmail.trim() : '';
         const votersQuery = query(
             collection(db, 'voters'),
-            where('campaignEmail', '==', currentLinkData.campaignEmail)
+            where('campaignEmail', '==', trimmedCampaignEmail)
         );
 
-        const snapshot = await getDocs(votersQuery);
-        console.log('[Call Recording] Voters query result:', snapshot.size, 'documents');
+        console.log('[Call Recording] Executing query for campaignEmail:', trimmedCampaignEmail);
+
+        let snapshot;
+        try {
+            snapshot = await getDocs(votersQuery);
+            console.log('[Call Recording] Voters query result:', snapshot.size, 'documents');
+
+            // If no results, try querying by 'email' field as fallback
+            if (snapshot.empty && trimmedCampaignEmail) {
+                console.warn('[Call Recording] No voters found with campaignEmail, trying email field as fallback...');
+                try {
+                    const emailQuery = query(
+                        collection(db, 'voters'),
+                        where('email', '==', trimmedCampaignEmail)
+                    );
+                    const emailSnapshot = await getDocs(emailQuery);
+                    console.log('[Call Recording] Email field query result:', emailSnapshot.size, 'documents');
+                    if (!emailSnapshot.empty) {
+                        snapshot = emailSnapshot;
+                        console.log('[Call Recording] Found voters using email field instead of campaignEmail');
+                    }
+                } catch (emailQueryError) {
+                    console.warn('[Call Recording] Email field query also failed:', emailQueryError);
+                    // Continue with empty snapshot
+                }
+            }
+        } catch (queryError) {
+            console.error('[Call Recording] Error executing voters query:', queryError);
+            console.error('[Call Recording] Query error code:', queryError.code);
+            console.error('[Call Recording] Query error message:', queryError.message);
+            console.error('[Call Recording] Campaign email used:', currentLinkData.campaignEmail);
+            console.error('[Call Recording] Auth state:', auth.currentUser ? {
+                uid: auth.currentUser.uid,
+                isAnonymous: auth.currentUser.isAnonymous,
+                email: auth.currentUser.email
+            } : 'Not authenticated');
+
+            // Handle different error types
+            if (queryError.code === 'permission-denied') {
+                const errorMsg = 'Permission denied: Unable to load voters. Please ensure Firestore rules allow unauthenticated reads for voters with campaignEmail. Rules must be deployed to Firebase.';
+                console.error('[Call Recording]', errorMsg);
+                throw new Error(errorMsg);
+            } else if (queryError.code === 'failed-precondition' || queryError.code === 400 || queryError.message.includes('400') || queryError.message.includes('index')) {
+                // Missing index or 400 error - try fallback: load all voters and filter client-side
+                console.warn('[Call Recording] Query failed, trying fallback: loading all voters and filtering client-side');
+                try {
+                    const allVotersRef = collection(db, 'voters');
+                    const allVotersSnapshot = await getDocs(allVotersRef);
+                    console.log('[Call Recording] Loaded all voters:', allVotersSnapshot.size, 'documents');
+
+                    // Filter by campaignEmail client-side (check both campaignEmail and email fields)
+                    const trimmedCampaignEmail = currentLinkData.campaignEmail ? currentLinkData.campaignEmail.trim() : '';
+                    const filteredDocs = allVotersSnapshot.docs.filter(doc => {
+                        const data = doc.data();
+                        const voterCampaignEmail = (data.campaignEmail || data.email || '').trim();
+                        const matches = voterCampaignEmail === trimmedCampaignEmail;
+                        if (!matches && voterCampaignEmail) {
+                            console.log('[Call Recording] Voter campaignEmail mismatch:', {
+                                expected: trimmedCampaignEmail,
+                                found: voterCampaignEmail,
+                                voterName: data.name || 'N/A'
+                            });
+                        }
+                        return matches;
+                    });
+
+                    // Log sample of campaign emails found if no matches
+                    if (filteredDocs.length === 0 && allVotersSnapshot.docs.length > 0) {
+                        console.warn('[Call Recording] No voters matched. Sample campaign emails found:');
+                        const sampleEmails = allVotersSnapshot.docs.slice(0, 5).map(doc => {
+                            const data = doc.data();
+                            return {
+                                campaignEmail: data.campaignEmail || 'not set',
+                                email: data.email || 'not set',
+                                name: data.name || 'N/A'
+                            };
+                        });
+                        console.warn('[Call Recording] Sample emails:', sampleEmails);
+                        console.warn('[Call Recording] Looking for:', trimmedCampaignEmail);
+                    }
+
+                    console.log('[Call Recording] Filtered to campaign voters:', filteredDocs.length, 'documents');
+
+                    // Create a snapshot-like object that matches Firestore QuerySnapshot structure
+                    snapshot = {
+                        docs: filteredDocs,
+                        size: filteredDocs.length,
+                        empty: filteredDocs.length === 0,
+                        query: votersQuery, // Keep reference to original query
+                        metadata: {
+                            fromCache: false,
+                            hasPendingWrites: false
+                        }
+                    };
+
+                    console.log('[Call Recording] Fallback successful - using client-side filtered results');
+                } catch (fallbackError) {
+                    console.error('[Call Recording] Fallback also failed:', fallbackError);
+                    const errorMsg = 'Failed to load voters. Error: ' + (queryError.message || queryError.code || 'Unknown error') + '. Please check Firestore rules and indexes.';
+                    throw new Error(errorMsg);
+                }
+            } else {
+                throw queryError;
+            }
+        }
+
+        // Check if snapshot is valid
+        if (!snapshot || !snapshot.docs) {
+            console.error('[Call Recording] Invalid snapshot received');
+            allVotersForCall = [];
+            throw new Error('Invalid response from Firestore');
+        }
 
         allVotersForCall = snapshot.docs.map(doc => {
             const data = doc.data();
-            return {
+            const voter = {
                 id: doc.id,
                 name: data.name || 'N/A',
                 voterId: data.voterId || data.idNumber || '',
                 idNumber: data.idNumber || data.voterId || '',
                 phone: data.phone || data.phoneNumber || data.mobile || data.contact || data.number || '',
                 island: data.island || data.constituency || '',
-                address: data.address || data.permanentAddress || data.location || ''
+                address: data.address || data.permanentAddress || data.location || '',
+                // Include email fields for debugging
+                campaignEmail: data.campaignEmail || data.email || '',
+                email: data.email || ''
             };
+            // Log first voter's email fields for debugging
+            if (snapshot.docs.indexOf(doc) === 0) {
+                console.log('[Call Recording] First voter email fields:', {
+                    campaignEmail: data.campaignEmail,
+                    email: data.email,
+                    name: data.name
+                });
+            }
+            return voter;
         });
 
-        console.log(`[Call Recording] Successfully loaded ${allVotersForCall.length} voters for campaign`);
+        console.log(`[Call Recording] Successfully loaded ${allVotersForCall.length} voters for campaign:`, currentLinkData.campaignEmail);
 
         if (allVotersForCall.length === 0) {
-            console.warn('[Call Recording] No voters found for this campaign. Check if campaignEmail matches.');
+            console.warn('[Call Recording] No voters found for this campaign.');
+            console.warn('[Call Recording] Campaign email used:', currentLinkData.campaignEmail);
+            console.warn('[Call Recording] Campaign email (trimmed):', currentLinkData.campaignEmail ? currentLinkData.campaignEmail.trim() : 'null');
+            console.warn('[Call Recording] This could mean:');
+            console.warn('  1. No voters exist for this campaign email');
+            console.warn('  2. Voters have a different campaignEmail value (check for case sensitivity or whitespace)');
+            console.warn('  3. Voters use "email" field instead of "campaignEmail"');
+            console.warn('  4. Firestore rules are blocking the read');
+            console.warn('[Call Recording] To debug: Check voter documents in Firestore console and verify campaignEmail field matches exactly');
+        } else {
+            console.log('[Call Recording] Sample voter data (first voter):', allVotersForCall[0]);
+            console.log('[Call Recording] First voter campaignEmail:', allVotersForCall[0].campaignEmail || 'not in sample data');
         }
     } catch (error) {
         console.error('[Call Recording] Error loading voters:', error);
-        console.error('[Call Recording] Error details:', error.message, error.code);
+        console.error('[Call Recording] Error details:', {
+            message: error.message,
+            code: error.code,
+            stack: error.stack
+        });
         allVotersForCall = [];
 
-        // Show user-friendly error if possible
+        // Show user-friendly error message
+        const errorMessage = error.code === 'permission-denied' ?
+            'Permission denied: Firestore rules may not allow unauthenticated reads. Please deploy updated Firestore rules to Firebase.' :
+            `Failed to load voters: ${error.message || 'Unknown error'}. Please check your connection and Firestore rules.`;
+
+        console.error('[Call Recording]', errorMessage);
+
+        // Show error to user if dialog system is available
         if (window.showError) {
-            window.showError('Failed to load voters. Please check your connection and try again.', 'Error');
+            window.showError(errorMessage, 'Error Loading Voters');
+        } else {
+            // Fallback: show alert
+            alert(errorMessage);
         }
     }
 }
@@ -611,10 +926,28 @@ async function handleCallSubmission(e) {
         await addDoc(callsRef, callData);
 
         // Increment call count for the link
-        const linkRef = doc(db, 'callLinks', linkId);
-        await updateDoc(linkRef, {
-            callsMade: increment(1)
-        });
+        // Ensure linkId is available before updating (use from currentLinkData if available)
+        if (!linkId) {
+            if (currentLinkData && currentLinkData.linkId) {
+                linkId = currentLinkData.linkId;
+                console.log('[Call Recording] Using linkId from currentLinkData for increment:', linkId);
+            } else {
+                const urlParams = new URLSearchParams(window.location.search);
+                linkId = urlParams.get('linkId');
+                console.log('[Call Recording] Re-read linkId from URL for increment:', linkId);
+            }
+        }
+
+        if (!linkId || typeof linkId !== 'string' || linkId.trim() === '') {
+            console.error('[Call Recording] Cannot increment callsMade - linkId is invalid:', linkId);
+            // Don't throw error, just log - call recording should still succeed
+        } else {
+            linkId = linkId.trim();
+            const linkRef = doc(db, 'callLinks', linkId);
+            await updateDoc(linkRef, {
+                callsMade: increment(1)
+            });
+        }
 
         updateLoadingProgress(100, 'Call recorded successfully!');
 
@@ -671,11 +1004,14 @@ function showAccessCodeModal() {
 
     modal.style.display = 'flex';
 
-    // Clear input
-    const input = document.getElementById('access-code-input');
-    if (input) {
-        input.value = '';
-        setTimeout(() => input.focus(), 100);
+    // Clear inputs
+    const emailInput = document.getElementById('login-email');
+    const passwordInput = document.getElementById('login-password');
+    
+    if (emailInput) emailInput.value = '';
+    if (passwordInput) {
+        passwordInput.value = '';
+        setTimeout(() => passwordInput.focus(), 100);
     }
 
     // Hide any previous errors
@@ -690,47 +1026,32 @@ function showAccessCodeModal() {
 
         // Add new listener
         const updatedForm = document.getElementById('access-code-form');
-        const updatedInput = document.getElementById('access-code-input');
+        const updatedEmailInput = document.getElementById('login-email');
+        const updatedPasswordInput = document.getElementById('login-password');
 
         updatedForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            let code = updatedInput.value.trim();
-            code = code.replace(/\D/g, ''); // Remove non-digits
 
-            if (code.length > 6) {
-                code = code.substring(0, 6);
-                updatedInput.value = code;
+            const email = updatedEmailInput ? updatedEmailInput.value.trim() : '';
+            const password = updatedPasswordInput ? updatedPasswordInput.value.trim() : '';
+
+            // Validate all fields
+            if (!email || !email.includes('@')) {
+                showAccessCodeError('Please enter a valid email address.');
+                return;
             }
 
-            if (code.length === 6 && /^\d{6}$/.test(code)) {
-                modal.style.display = 'none';
-                showLoading();
-                hideAccessCodeError();
-                await validateAccessCode(code);
-            } else {
-                showAccessCodeError('Please enter a valid 6-digit code');
+            if (!password || password.length < 6) {
+                showAccessCodeError('Please enter the temporary password.');
+                return;
             }
+
+            modal.style.display = 'none';
+            showLoading();
+            hideAccessCodeError();
+            await validateAccessCode(email, password);
         });
 
-        // Auto-submit on 6 digits entered
-        if (updatedInput) {
-            updatedInput.addEventListener('input', (e) => {
-                let value = e.target.value.replace(/\D/g, '');
-                if (value.length > 6) {
-                    value = value.substring(0, 6);
-                }
-                e.target.value = value;
-            });
-
-            updatedInput.addEventListener('input', (e) => {
-                const code = e.target.value.trim();
-                if (code.length === 6 && /^\d{6}$/.test(code)) {
-                    setTimeout(() => {
-                        updatedForm.dispatchEvent(new Event('submit'));
-                    }, 300);
-                }
-            });
-        }
     }
 }
 
