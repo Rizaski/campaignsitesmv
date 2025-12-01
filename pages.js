@@ -3244,7 +3244,7 @@ async function loadEventsData(forceRefresh = false) {
 }
 
 // View event details
-async function viewEventDetails(eventId) {
+async function viewEventDetails(eventId, navigateDirection = null) {
     if (!window.db || !window.userEmail) {
         if (window.showErrorDialog) {
             window.showErrorDialog('Database not initialized. Please refresh the page.');
@@ -3325,8 +3325,57 @@ async function viewEventDetails(eventId) {
 
         const {
             doc,
-            getDoc
+            getDoc,
+            collection,
+            query,
+            where,
+            orderBy,
+            getDocs
         } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
+
+        // Fetch all events for navigation
+        let allEvents = [];
+        let currentIndex = -1;
+        try {
+            const eventsQuery = query(
+                collection(window.db, 'events'),
+                where('campaignEmail', '==', window.userEmail),
+                orderBy('eventDate', 'desc')
+            );
+            const allEventsSnapshot = await getDocs(eventsQuery);
+            allEvents = allEventsSnapshot.docs.map(d => ({
+                id: d.id,
+                ...d.data()
+            }));
+            currentIndex = allEvents.findIndex(e => e.id === eventId);
+        } catch (queryError) {
+            // If index missing, query without orderBy
+            if (queryError.code === 'failed-precondition') {
+                const fallbackQuery = query(
+                    collection(window.db, 'events'),
+                    where('campaignEmail', '==', window.userEmail)
+                );
+                const fallbackSnapshot = await getDocs(fallbackQuery);
+                allEvents = fallbackSnapshot.docs.map(d => ({
+                    id: d.id,
+                    ...d.data()
+                })).sort((a, b) => {
+                    const dateA = a.eventDate.toDate ? a.eventDate.toDate() : new Date(a.eventDate || 0);
+                    const dateB = b.eventDate.toDate ? b.eventDate.toDate() : new Date(b.eventDate || 0);
+                    return dateB - dateA;
+                });
+                currentIndex = allEvents.findIndex(e => e.id === eventId);
+            }
+        }
+
+        // Handle navigation
+        if (navigateDirection === 'prev' && currentIndex > 0) {
+            eventId = allEvents[currentIndex - 1].id;
+            currentIndex = currentIndex - 1;
+        } else if (navigateDirection === 'next' && currentIndex < allEvents.length - 1) {
+            eventId = allEvents[currentIndex + 1].id;
+            currentIndex = currentIndex + 1;
+        }
 
         console.log('[viewEventDetails] Fetching event:', eventId);
 
@@ -3466,23 +3515,54 @@ async function viewEventDetails(eventId) {
                         </svg>
                         Delete Event
                     </button>
-                    <div style="display: flex; gap: 10px;">
-                        <button 
-                            class="btn-secondary btn-compact" 
-                            onclick="closeModal()"
-                            style="display: flex; align-items: center; gap: 6px;">
-                            Close
-                        </button>
-                        <button 
-                            class="btn-primary btn-compact" 
-                            onclick="closeModal(); setTimeout(() => { if (window.openModal) window.openModal('event', '${eventId}'); }, 100);"
-                            style="display: flex; align-items: center; gap: 6px;">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-                            </svg>
-                            Edit Event
-                        </button>
+                    <div style="display: flex; flex-wrap: nowrap; justify-content: space-between; align-items: center; gap: 10px; overflow-x: auto; -webkit-overflow-scrolling: touch;">
+                        <!-- Navigation -->
+                        ${allEvents.length > 1 ? `
+                        <div style="display: flex; gap: 6px; flex-wrap: nowrap; flex-shrink: 0;">
+                            <button 
+                                class="btn-secondary btn-compact" 
+                                ${currentIndex === 0 ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''}
+                                onclick="viewEventDetails('${eventId}', 'prev')"
+                                style="display: flex; align-items: center; gap: 6px;">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <polyline points="15 18 9 12 15 6"></polyline>
+                                </svg>
+                                Previous
+                            </button>
+                            <span style="color: var(--text-light); font-size: 12px; padding: 8px 8px; display: flex; align-items: center; white-space: nowrap; flex-shrink: 0;">
+                                ${currentIndex + 1} of ${allEvents.length}
+                            </span>
+                            <button 
+                                class="btn-secondary btn-compact" 
+                                ${currentIndex === allEvents.length - 1 ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''}
+                                onclick="viewEventDetails('${eventId}', 'next')"
+                                style="display: flex; align-items: center; gap: 6px;">
+                                Next
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <polyline points="9 18 15 12 9 6"></polyline>
+                                </svg>
+                            </button>
+                        </div>
+                        ` : '<div></div>'}
+                        <!-- Actions -->
+                        <div style="display: flex; gap: 6px; flex-wrap: nowrap; flex-shrink: 0;">
+                            <button 
+                                class="btn-secondary btn-compact" 
+                                onclick="closeModal()"
+                                style="display: flex; align-items: center; gap: 6px; white-space: nowrap;">
+                                Close
+                            </button>
+                            <button 
+                                class="btn-primary btn-compact" 
+                                onclick="closeModal(); setTimeout(() => { if (window.openModal) window.openModal('event', '${eventId}'); }, 100);"
+                                style="display: flex; align-items: center; gap: 6px; white-space: nowrap;">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                                </svg>
+                                Edit Event
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -8786,9 +8866,9 @@ async function viewVoterDetails(voterId, navigateDirection = null) {
                 </div>
 
                 <!-- Navigation and Actions -->
-                <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 15px; margin-top: 30px; padding-top: 20px; border-top: 2px solid var(--border-color);">
+                <div style="display: flex; flex-wrap: nowrap; justify-content: space-between; align-items: center; gap: 8px; margin-top: 30px; padding-top: 20px; border-top: 2px solid var(--border-color); overflow-x: auto; -webkit-overflow-scrolling: touch;">
                     <!-- Navigation -->
-                    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                    <div style="display: flex; gap: 6px; flex-wrap: nowrap; flex-shrink: 0;">
                         <button 
                             id="voter-nav-prev" 
                             class="btn-secondary btn-compact" 
@@ -8800,7 +8880,7 @@ async function viewVoterDetails(voterId, navigateDirection = null) {
                             </svg>
                             Previous
                         </button>
-                        <span style="color: var(--text-light); font-size: 13px; padding: 8px 12px; display: flex; align-items: center;">
+                        <span style="color: var(--text-light); font-size: 12px; padding: 8px 8px; display: flex; align-items: center; white-space: nowrap; flex-shrink: 0;">
                             ${currentIndex + 1} of ${allVoters.length}
                         </span>
                         <button 
@@ -8817,10 +8897,11 @@ async function viewVoterDetails(voterId, navigateDirection = null) {
                     </div>
 
                     <!-- Actions -->
-                    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                    <div style="display: flex; gap: 6px; flex-wrap: nowrap; flex-shrink: 0;">
                         <button 
                             class="btn-primary btn-compact" 
                             onclick="editVoter('${voterId}')"
+                            style="white-space: nowrap;"
                             style="display: flex; align-items: center; gap: 6px;">
                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                 <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
@@ -8831,7 +8912,7 @@ async function viewVoterDetails(voterId, navigateDirection = null) {
                         <button 
                             class="btn-secondary btn-compact" 
                             onclick="deleteVoter('${voterId}')"
-                            style="display: flex; align-items: center; gap: 6px; background: var(--danger-color); color: white; border-color: var(--danger-color);">
+                            style="display: flex; align-items: center; gap: 6px; background: var(--danger-color); color: white; border-color: var(--danger-color); white-space: nowrap;">
                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                 <polyline points="3 6 5 6 21 6"></polyline>
                                 <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
@@ -9508,9 +9589,9 @@ async function viewPledgeDetails(pledgeId, navigateDirection = null) {
                 ` : ''}
 
                 <!-- Navigation and Actions -->
-                <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 15px; margin-top: 30px; padding-top: 20px; border-top: 2px solid var(--border-color);">
+                <div style="display: flex; flex-wrap: nowrap; justify-content: space-between; align-items: center; gap: 8px; margin-top: 30px; padding-top: 20px; border-top: 2px solid var(--border-color); overflow-x: auto; -webkit-overflow-scrolling: touch;">
                     <!-- Navigation -->
-                    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                    <div style="display: flex; gap: 6px; flex-wrap: nowrap; flex-shrink: 0;">
                         <button 
                             id="pledge-nav-prev" 
                             class="btn-secondary btn-compact" 
@@ -9522,7 +9603,7 @@ async function viewPledgeDetails(pledgeId, navigateDirection = null) {
                             </svg>
                             Previous
                         </button>
-                        <span style="color: var(--text-light); font-size: 13px; padding: 8px 12px; display: flex; align-items: center;">
+                        <span style="color: var(--text-light); font-size: 12px; padding: 8px 8px; display: flex; align-items: center; white-space: nowrap; flex-shrink: 0;">
                             ${currentIndex + 1} of ${allPledges.length}
                         </span>
                         <button 
@@ -9539,10 +9620,11 @@ async function viewPledgeDetails(pledgeId, navigateDirection = null) {
                     </div>
 
                     <!-- Actions -->
-                    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                    <div style="display: flex; gap: 6px; flex-wrap: nowrap; flex-shrink: 0;">
                         <button 
                             class="btn-primary btn-compact" 
                             onclick="editPledge('${pledgeId}')"
+                            style="white-space: nowrap;"
                             style="display: flex; align-items: center; gap: 6px;">
                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                 <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
@@ -9553,7 +9635,7 @@ async function viewPledgeDetails(pledgeId, navigateDirection = null) {
                         <button 
                             class="btn-secondary btn-compact" 
                             onclick="deletePledge('${pledgeId}')"
-                            style="display: flex; align-items: center; gap: 6px; background: var(--danger-color); color: white; border-color: var(--danger-color);">
+                            style="display: flex; align-items: center; gap: 6px; background: var(--danger-color); color: white; border-color: var(--danger-color); white-space: nowrap;">
                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                 <polyline points="3 6 5 6 21 6"></polyline>
                                 <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
@@ -9996,10 +10078,10 @@ async function viewCandidateDetails(candidateId, navigateDirection = null) {
                 </div>
 
                 <!-- Navigation and Actions -->
-                <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 15px; margin-top: 30px; padding-top: 20px; border-top: 2px solid var(--border-color);">
+                <div style="display: flex; flex-wrap: nowrap; justify-content: space-between; align-items: center; gap: 8px; margin-top: 30px; padding-top: 20px; border-top: 2px solid var(--border-color); overflow-x: auto; -webkit-overflow-scrolling: touch;">
                     <!-- Navigation -->
                     ${allCandidates.length > 1 ? `
-                    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                    <div style="display: flex; gap: 6px; flex-wrap: nowrap; flex-shrink: 0;">
                         <button 
                             class="btn-secondary btn-compact" 
                             ${currentIndex === 0 ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''}
@@ -10010,7 +10092,7 @@ async function viewCandidateDetails(candidateId, navigateDirection = null) {
                             </svg>
                             Previous
                         </button>
-                        <span style="color: var(--text-light); font-size: 13px; padding: 8px 12px; display: flex; align-items: center;">
+                        <span style="color: var(--text-light); font-size: 12px; padding: 8px 8px; display: flex; align-items: center; white-space: nowrap; flex-shrink: 0;">
                             ${currentIndex + 1} of ${allCandidates.length}
                         </span>
                         <button 
@@ -10026,10 +10108,11 @@ async function viewCandidateDetails(candidateId, navigateDirection = null) {
                     </div>
                     ` : '<div></div>'}
                     <!-- Actions -->
-                    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                    <div style="display: flex; gap: 6px; flex-wrap: nowrap; flex-shrink: 0;">
                         <button 
                             class="btn-primary btn-compact" 
                             onclick="editCandidate('${candidateId}')"
+                            style="white-space: nowrap;"
                             style="display: flex; align-items: center; gap: 6px;">
                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                 <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
@@ -10040,7 +10123,7 @@ async function viewCandidateDetails(candidateId, navigateDirection = null) {
                         <button 
                             class="btn-secondary btn-compact" 
                             onclick="deleteCandidate('${candidateId}')"
-                            style="display: flex; align-items: center; gap: 6px; background: var(--danger-color); color: white; border-color: var(--danger-color);">
+                            style="display: flex; align-items: center; gap: 6px; background: var(--danger-color); color: white; border-color: var(--danger-color); white-space: nowrap;">
                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                 <polyline points="3 6 5 6 21 6"></polyline>
                                 <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
@@ -10821,7 +10904,7 @@ function copyAgentLink() {
 }
 
 // View Agent Details (complete information)
-async function viewAgentDetails(agentId) {
+async function viewAgentDetails(agentId, navigateDirection = null) {
     if (!window.db || !window.userEmail) return;
 
     try {
@@ -10833,6 +10916,25 @@ async function viewAgentDetails(agentId) {
             where,
             getDocs
         } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
+
+        // Fetch all agents for navigation
+        const agentsQuery = query(collection(window.db, 'agents'), where('email', '==', window.userEmail));
+        const allAgentsSnapshot = await getDocs(agentsQuery);
+        const allAgents = allAgentsSnapshot.docs.map(d => ({
+            id: d.id,
+            ...d.data()
+        }));
+
+        let currentIndex = allAgents.findIndex(a => a.id === agentId);
+
+        // Handle navigation
+        if (navigateDirection === 'prev' && currentIndex > 0) {
+            agentId = allAgents[currentIndex - 1].id;
+            currentIndex = currentIndex - 1;
+        } else if (navigateDirection === 'next' && currentIndex < allAgents.length - 1) {
+            agentId = allAgents[currentIndex + 1].id;
+            currentIndex = currentIndex + 1;
+        }
 
         // Get agent data
         const agentRef = doc(window.db, 'agents', agentId);
@@ -10978,8 +11080,41 @@ async function viewAgentDetails(agentId) {
 
         if (modalFooter) {
             modalFooter.innerHTML = `
-                <button class="btn-secondary" onclick="closeModal();">Close</button>
-                <button class="btn-primary" onclick="closeModal(); viewAgentPerformance('${agentId}');">View Performance</button>
+                <div style="display: flex; flex-wrap: nowrap; justify-content: space-between; align-items: center; gap: 8px; width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch;">
+                    <!-- Navigation -->
+                    ${allAgents.length > 1 ? `
+                    <div style="display: flex; gap: 6px; flex-wrap: nowrap; flex-shrink: 0;">
+                        <button 
+                            class="btn-secondary btn-compact" 
+                            ${currentIndex === 0 ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''}
+                            onclick="viewAgentDetails('${agentId}', 'prev')"
+                            style="display: flex; align-items: center; gap: 6px;">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="15 18 9 12 15 6"></polyline>
+                            </svg>
+                            Previous
+                        </button>
+                        <span style="color: var(--text-light); font-size: 12px; padding: 8px 8px; display: flex; align-items: center; white-space: nowrap; flex-shrink: 0;">
+                            ${currentIndex + 1} of ${allAgents.length}
+                        </span>
+                        <button 
+                            class="btn-secondary btn-compact" 
+                            ${currentIndex === allAgents.length - 1 ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''}
+                            onclick="viewAgentDetails('${agentId}', 'next')"
+                            style="display: flex; align-items: center; gap: 6px;">
+                            Next
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <polyline points="9 18 15 12 9 6"></polyline>
+                            </svg>
+                        </button>
+                    </div>
+                    ` : '<div></div>'}
+                    <!-- Actions -->
+                    <div style="display: flex; gap: 6px; flex-wrap: nowrap; flex-shrink: 0;">
+                        <button class="btn-secondary" onclick="closeModal();" style="white-space: nowrap;">Close</button>
+                        <button class="btn-primary" onclick="closeModal(); viewAgentPerformance('${agentId}');" style="white-space: nowrap;">View Performance</button>
+                    </div>
+                </div>
             `;
         }
 
@@ -11323,7 +11458,7 @@ async function deleteEvent(eventId) {
 window.deleteEvent = deleteEvent;
 
 // View Call Details Function
-async function viewCallDetails(callId) {
+async function viewCallDetails(callId, navigateDirection = null) {
     if (!window.db || !window.userEmail) {
         window.showErrorDialog('Database not initialized. Please refresh the page.');
         return;
@@ -11334,8 +11469,57 @@ async function viewCallDetails(callId) {
     try {
         const {
             doc,
-            getDoc
+            getDoc,
+            collection,
+            query,
+            where,
+            orderBy,
+            getDocs
         } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
+
+        // Fetch all calls for navigation
+        let allCalls = [];
+        let currentIndex = -1;
+        try {
+            const callsQuery = query(
+                collection(window.db, 'calls'),
+                where('campaignEmail', '==', window.userEmail),
+                orderBy('callDate', 'desc')
+            );
+            const allCallsSnapshot = await getDocs(callsQuery);
+            allCalls = allCallsSnapshot.docs.map(d => ({
+                id: d.id,
+                ...d.data()
+            }));
+            currentIndex = allCalls.findIndex(c => c.id === callId);
+        } catch (queryError) {
+            // If index missing, query without orderBy
+            if (queryError.code === 'failed-precondition') {
+                const fallbackQuery = query(
+                    collection(window.db, 'calls'),
+                    where('campaignEmail', '==', window.userEmail)
+                );
+                const fallbackSnapshot = await getDocs(fallbackQuery);
+                allCalls = fallbackSnapshot.docs.map(d => ({
+                    id: d.id,
+                    ...d.data()
+                })).sort((a, b) => {
+                    const dateA = a.callDate.toDate ? a.callDate.toDate() : new Date(a.callDate || 0);
+                    const dateB = b.callDate.toDate ? b.callDate.toDate() : new Date(b.callDate || 0);
+                    return dateB - dateA;
+                });
+                currentIndex = allCalls.findIndex(c => c.id === callId);
+            }
+        }
+
+        // Handle navigation
+        if (navigateDirection === 'prev' && currentIndex > 0) {
+            callId = allCalls[currentIndex - 1].id;
+            currentIndex = currentIndex - 1;
+        } else if (navigateDirection === 'next' && currentIndex < allCalls.length - 1) {
+            callId = allCalls[currentIndex + 1].id;
+            currentIndex = currentIndex + 1;
+        }
 
         const callRef = doc(window.db, 'calls', callId);
         const callSnap = await getDoc(callRef);
@@ -11404,16 +11588,47 @@ async function viewCallDetails(callId) {
                     </div>
                     ` : ''}
 
-                    <div style="display: flex; gap: 1rem; margin-top: 1rem; flex-wrap: wrap;">
-                        <button class="btn-secondary btn-compact" onclick="closeModal()">Close</button>
-                        <button class="btn-primary btn-compact" onclick="closeModal(); setTimeout(() => { if (window.openModal) window.openModal('call', '${callId}'); }, 100);">Edit Call</button>
-                        <button class="btn-danger btn-compact" onclick="window.deleteCall('${callId}')" style="display: flex; align-items: center; gap: 6px;">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <polyline points="3 6 5 6 21 6"></polyline>
-                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                            </svg>
-                            Delete Call
-                        </button>
+                    <div style="display: flex; flex-wrap: nowrap; justify-content: space-between; align-items: center; gap: 8px; margin-top: 1rem; padding-top: 1rem; border-top: 2px solid var(--border-color); overflow-x: auto; -webkit-overflow-scrolling: touch;">
+                        <!-- Navigation -->
+                        ${allCalls.length > 1 ? `
+                        <div style="display: flex; gap: 6px; flex-wrap: nowrap; flex-shrink: 0;">
+                            <button 
+                                class="btn-secondary btn-compact" 
+                                ${currentIndex === 0 ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''}
+                                onclick="viewCallDetails('${callId}', 'prev')"
+                                style="display: flex; align-items: center; gap: 6px;">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <polyline points="15 18 9 12 15 6"></polyline>
+                                </svg>
+                                Previous
+                            </button>
+                            <span style="color: var(--text-light); font-size: 12px; padding: 8px 8px; display: flex; align-items: center; white-space: nowrap; flex-shrink: 0;">
+                                ${currentIndex + 1} of ${allCalls.length}
+                            </span>
+                            <button 
+                                class="btn-secondary btn-compact" 
+                                ${currentIndex === allCalls.length - 1 ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : ''}
+                                onclick="viewCallDetails('${callId}', 'next')"
+                                style="display: flex; align-items: center; gap: 6px;">
+                                Next
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <polyline points="9 18 15 12 9 6"></polyline>
+                                </svg>
+                            </button>
+                        </div>
+                        ` : '<div></div>'}
+                        <!-- Actions -->
+                        <div style="display: flex; gap: 6px; flex-wrap: nowrap; flex-shrink: 0;">
+                            <button class="btn-secondary btn-compact" onclick="closeModal()" style="white-space: nowrap;">Close</button>
+                            <button class="btn-primary btn-compact" onclick="closeModal(); setTimeout(() => { if (window.openModal) window.openModal('call', '${callId}'); }, 100);" style="white-space: nowrap;">Edit Call</button>
+                            <button class="btn-danger btn-compact" onclick="window.deleteCall('${callId}')" style="display: flex; align-items: center; gap: 6px; white-space: nowrap;">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <polyline points="3 6 5 6 21 6"></polyline>
+                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                </svg>
+                                Delete Call
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
