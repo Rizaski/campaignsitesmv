@@ -1145,7 +1145,7 @@ const pageTemplates = {
                 </thead>
                 <tbody id="agents-table-body">
                     <tr>
-                        <td colspan="7" style="text-align: center; padding: 40px; color: var(--text-light);">
+                        <td colspan="9" style="text-align: center; padding: 40px; color: var(--text-light);">
                             <p>No agents assigned yet</p>
                         </td>
                     </tr>
@@ -5292,63 +5292,146 @@ function renderCachedVotersData() {
     if (window.voterGroupedData && Object.keys(window.voterGroupedData).length > 0) {
         tbody.innerHTML = '';
         const fragment = document.createDocumentFragment();
-        let rowNumber = 1;
+
+        // Get pagination state
+        const state = paginationState.voters;
+        const recordsPerPage = state.recordsPerPage;
+        const currentPage = state.currentPage;
+        const startIndex = (currentPage - 1) * recordsPerPage;
+        const endIndex = startIndex + recordsPerPage;
 
         // Sort group keys for consistent display
         const sortedGroups = Object.keys(window.voterGroupedData).sort();
 
+        // Build flat list of items (group headers + voters) for pagination
+        // Each group header counts as 1 row, each voter counts as 1 row
+        const flatItems = [];
         sortedGroups.forEach(groupKey => {
             const groupVoters = window.voterGroupedData[groupKey];
 
-            // Add group header row
-            const headerRow = document.createElement('tr');
-            headerRow.style.backgroundColor = 'var(--primary-50)';
-            headerRow.style.fontWeight = '600';
-            let groupLabel = '';
-            switch (groupBy) {
-                case 'island':
-                    groupLabel = 'Island';
-                    break;
-                case 'constituency':
-                    groupLabel = 'Constituency';
-                    break;
-                case 'ballot':
-                    groupLabel = 'Ballot Box';
-                    break;
-                case 'gender':
-                    groupLabel = 'Gender';
-                    break;
-                case 'permanentAddress':
-                    groupLabel = 'Permanent Address';
-                    break;
-                case 'currentLocation':
-                    groupLabel = 'Current Location';
-                    break;
-                default:
-                    groupLabel = 'Group';
-            }
-            // Truncate long addresses/locations for display
-            let displayKey = groupKey;
-            if (groupBy === 'permanentAddress' || groupBy === 'currentLocation') {
-                if (groupKey.length > 60) {
-                    displayKey = groupKey.substring(0, 60) + '...';
-                }
-            }
-            headerRow.innerHTML = `<td colspan="9" style="padding: 12px; font-size: 13px; color: var(--primary-color); text-transform: uppercase; letter-spacing: 0.5px;" title="${groupKey}">${groupLabel}: ${displayKey} (${groupVoters.length})</td>`;
-            fragment.appendChild(headerRow);
+            // Add group header as an item (counts as 1 row)
+            flatItems.push({
+                type: 'header',
+                groupKey: groupKey,
+                groupVoters: groupVoters
+            });
 
-            // Add voters in this group
-            groupVoters.forEach(({
-                id,
-                data
-            }) => {
-                const row = createVoterTableRow(id, data, rowNumber++);
-                if (row) fragment.appendChild(row);
+            // Add each voter as an item (each counts as 1 row)
+            groupVoters.forEach(voter => {
+                flatItems.push({
+                    type: 'voter',
+                    voter: voter,
+                    groupKey: groupKey
+                });
             });
         });
 
+        // Calculate total rows (headers + voters)
+        const totalRows = flatItems.length;
+
+        // Apply pagination to the flat items list
+        const paginatedItems = flatItems.slice(startIndex, endIndex);
+
+        // Track which groups we've shown headers for on this page
+        const shownGroupHeaders = new Set();
+        let rowNumber = startIndex + 1;
+
+        paginatedItems.forEach(item => {
+            if (item.type === 'header') {
+                // Show group header
+                shownGroupHeaders.add(item.groupKey);
+                const groupVoters = item.groupVoters;
+
+                const headerRow = document.createElement('tr');
+                headerRow.style.backgroundColor = 'var(--primary-50)';
+                headerRow.style.fontWeight = '600';
+                let groupLabel = '';
+                switch (groupBy) {
+                    case 'island':
+                        groupLabel = 'Island';
+                        break;
+                    case 'constituency':
+                        groupLabel = 'Constituency';
+                        break;
+                    case 'ballot':
+                        groupLabel = 'Ballot Box';
+                        break;
+                    case 'gender':
+                        groupLabel = 'Gender';
+                        break;
+                    case 'permanentAddress':
+                        groupLabel = 'Permanent Address';
+                        break;
+                    case 'currentLocation':
+                        groupLabel = 'Current Location';
+                        break;
+                    default:
+                        groupLabel = 'Group';
+                }
+                // Truncate long addresses/locations for display
+                let displayKey = item.groupKey;
+                if (groupBy === 'permanentAddress' || groupBy === 'currentLocation') {
+                    if (item.groupKey.length > 60) {
+                        displayKey = item.groupKey.substring(0, 60) + '...';
+                    }
+                }
+                headerRow.innerHTML = `<td colspan="9" style="padding: 12px; font-size: 13px; color: var(--primary-color); text-transform: uppercase; letter-spacing: 0.5px;" title="${item.groupKey}">${groupLabel}: ${displayKey} (${groupVoters.length})</td>`;
+                fragment.appendChild(headerRow);
+            } else if (item.type === 'voter') {
+                // If this voter's group header hasn't been shown yet, show it first
+                if (!shownGroupHeaders.has(item.groupKey)) {
+                    shownGroupHeaders.add(item.groupKey);
+                    const groupVoters = window.voterGroupedData[item.groupKey];
+
+                    const headerRow = document.createElement('tr');
+                    headerRow.style.backgroundColor = 'var(--primary-50)';
+                    headerRow.style.fontWeight = '600';
+                    let groupLabel = '';
+                    switch (groupBy) {
+                        case 'island':
+                            groupLabel = 'Island';
+                            break;
+                        case 'constituency':
+                            groupLabel = 'Constituency';
+                            break;
+                        case 'ballot':
+                            groupLabel = 'Ballot Box';
+                            break;
+                        case 'gender':
+                            groupLabel = 'Gender';
+                            break;
+                        case 'permanentAddress':
+                            groupLabel = 'Permanent Address';
+                            break;
+                        case 'currentLocation':
+                            groupLabel = 'Current Location';
+                            break;
+                        default:
+                            groupLabel = 'Group';
+                    }
+                    let displayKey = item.groupKey;
+                    if (groupBy === 'permanentAddress' || groupBy === 'currentLocation') {
+                        if (item.groupKey.length > 60) {
+                            displayKey = item.groupKey.substring(0, 60) + '...';
+                        }
+                    }
+                    headerRow.innerHTML = `<td colspan="9" style="padding: 12px; font-size: 13px; color: var(--primary-color); text-transform: uppercase; letter-spacing: 0.5px;" title="${item.groupKey}">${groupLabel}: ${displayKey} (${groupVoters.length})</td>`;
+                    fragment.appendChild(headerRow);
+                }
+
+                // Render voter row
+                const {
+                    id,
+                    data
+                } = item.voter;
+                const row = createVoterTableRow(id, data, rowNumber++);
+                if (row) fragment.appendChild(row);
+            }
+        });
+
         tbody.appendChild(fragment);
-        renderPagination('voters', filteredDocs.length);
+        // Use totalRows for pagination (includes group headers)
+        renderPagination('voters', totalRows);
         return true;
     }
 
@@ -8058,7 +8141,7 @@ async function loadAgentsData(forceRefresh = false) {
     }
 
     // Show skeleton loading
-    showTableSkeleton(tbody, 5, 7);
+    showTableSkeleton(tbody, 5, 9);
 
     try {
         (tbody, 10);
@@ -8080,7 +8163,7 @@ async function loadAgentsData(forceRefresh = false) {
         if (snapshot.empty) {
             (tbody, 100);
             setTimeout(() => {
-                tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 40px; color: var(--text-light);">No agents assigned yet</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; padding: 40px; color: var(--text-light);">No agents assigned yet</td></tr>';
                 renderPagination('agents', 0);
             }, 300);
             // Store empty cache
@@ -8222,10 +8305,15 @@ async function loadAgentsData(forceRefresh = false) {
             const agentName = data.name || 'N/A';
             const assignedArea = data.assignedArea || 'N/A';
 
+            const constituency = data.constituency || 'N/A';
+            const island = data.island || 'N/A';
+
             const row = document.createElement('tr');
             row.innerHTML = `
                 <td style="text-align: center; font-weight: 600; color: var(--text-light);">${rowNumber}</td>
                 <td style="font-weight: 600; color: var(--text-color);">${agentName}</td>
+                <td>${constituency}</td>
+                <td>${island}</td>
                 <td>${assignedArea}</td>
                 <td style="text-align: center;">
                     <span style="font-weight: 600; color: var(--primary-color);">${assignedVotersCount}</span>
@@ -8289,7 +8377,7 @@ async function loadAgentsData(forceRefresh = false) {
     } catch (error) {
         console.error('Error loading agents:', error);
         if (tbody) {
-            tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 40px; color: var(--text-light);">Error loading agents</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; padding: 40px; color: var(--text-light);">Error loading agents</td></tr>';
         }
         renderPagination('agents', 0);
     }
@@ -8694,6 +8782,15 @@ async function deleteAgent(agentId) {
             if (window.loadPageContent) {
                 window.loadPageContent('agent-assignment');
             }
+        }
+
+        // Trigger comprehensive refresh to sync with Firebase
+        if (window.refreshApplicationData) {
+            setTimeout(() => {
+                window.refreshApplicationData().catch(err => {
+                    console.warn('[Delete Agent] Error during auto-refresh after delete:', err);
+                });
+            }, 500);
         }
     } catch (error) {
         console.error('Error deleting agent:', error);
@@ -14943,9 +15040,9 @@ async function createVoterDetailHTML(data, {
                         </table>
                     </div>
                 ` : '<p style="margin: 0; font-size: 12px; color: var(--text-light);">Not assigned to any agent</p>'
-    } <
-    /div> < /
-    div >
+                }
+            </div>
+        </div>
     `;
 }
 
@@ -15269,6 +15366,15 @@ async function deleteVoter(voterId) {
         } else if (window.loadPageContent) {
             setTimeout(() => {
                 window.loadPageContent('voters');
+            }, 500);
+        }
+
+        // Trigger comprehensive refresh to sync with Firebase
+        if (window.refreshApplicationData) {
+            setTimeout(() => {
+                window.refreshApplicationData().catch(err => {
+                    console.warn('[Delete Voter] Error during auto-refresh after delete:', err);
+                });
             }, 500);
         }
     } catch (error) {
@@ -16168,6 +16274,15 @@ async function deletePledge(pledgeId) {
         } else if (window.loadPageContent) {
             setTimeout(() => {
                 window.loadPageContent('pledges');
+            }, 500);
+        }
+
+        // Trigger comprehensive refresh to sync with Firebase
+        if (window.refreshApplicationData) {
+            setTimeout(() => {
+                window.refreshApplicationData().catch(err => {
+                    console.warn('[Delete Pledge] Error during auto-refresh after delete:', err);
+                });
             }, 500);
         }
     } catch (error) {
@@ -17235,6 +17350,15 @@ async function deleteCandidate(candidateId) {
         const modalOverlay = document.getElementById('modal-overlay');
         if (modalOverlay) {
             modalOverlay.style.display = 'none';
+        }
+
+        // Trigger comprehensive refresh to sync with Firebase
+        if (window.refreshApplicationData) {
+            setTimeout(() => {
+                window.refreshApplicationData().catch(err => {
+                    console.warn('[Delete Candidate] Error during auto-refresh after delete:', err);
+                });
+            }, 500);
         }
     } catch (error) {
         console.error('Error deleting candidate:', error);

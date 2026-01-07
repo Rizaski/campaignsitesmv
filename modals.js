@@ -1983,6 +1983,15 @@ voters / $ {
             // Reload voters table
             if (window.reloadTableData) {
                 window.reloadTableData('voter');
+            }
+            
+            // Trigger comprehensive refresh to sync with Firebase
+            if (window.refreshApplicationData) {
+                setTimeout(() => {
+                    window.refreshApplicationData().catch(err => {
+                        console.warn('[Modals] Error during auto-refresh after update:', err);
+                    });
+                }, 500);
             } else if (window.loadPageContent) {
                 setTimeout(() => {
                     window.loadPageContent('voters');
@@ -2020,6 +2029,23 @@ voters / $ {
             // Show success message
             if (window.showSuccess) {
                 window.showSuccess('Candidate updated successfully!', 'Success');
+            }
+            
+            // Close modal
+            closeModal();
+            
+            // Reload candidates table
+            if (window.reloadTableData) {
+                window.reloadTableData('candidate');
+            }
+            
+            // Trigger comprehensive refresh to sync with Firebase
+            if (window.refreshApplicationData) {
+                setTimeout(() => {
+                    window.refreshApplicationData().catch(err => {
+                        console.warn('[Modals] Error during auto-refresh after update:', err);
+                    });
+                }, 500);
             }
         } else if (editPledgeId && type === 'pledge') {
             // Update existing pledge (don't update recordedAt timestamp)
@@ -2065,6 +2091,15 @@ voters / $ {
             } else if (window.loadPageContent) {
                 setTimeout(() => {
                     window.loadPageContent('pledges');
+                }, 500);
+            }
+            
+            // Trigger comprehensive refresh to sync with Firebase
+            if (window.refreshApplicationData) {
+                setTimeout(() => {
+                    window.refreshApplicationData().catch(err => {
+                        console.warn('[Modals] Error during auto-refresh after update:', err);
+                    });
                 }, 500);
             }
         } else if (editAgentId && type === 'agent') {
@@ -2601,6 +2636,16 @@ voters / $ {
 
                 // Reload table data immediately after saving
                 reloadTableData(type, editVoterId, editPledgeId, editAgentId, editCandidateId);
+                
+                // Trigger comprehensive refresh to sync with Firebase
+                if (window.refreshApplicationData) {
+                    // Delay refresh slightly to ensure Firebase write is complete
+                    setTimeout(() => {
+                        window.refreshApplicationData().catch(err => {
+                            console.warn('[Modals] Error during auto-refresh after save:', err);
+                        });
+                    }, 500);
+                }
             }
         }
 

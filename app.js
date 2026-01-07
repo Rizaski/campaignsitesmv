@@ -2200,8 +2200,16 @@ async function loadWorkspace(data) {
                 campaignNameEl.textContent = data.campaignName || 'Campaign Name';
             }
             if (islandNameEl) {
+                // Initially set from data, but will be updated by global filter
                 islandNameEl.textContent = data.island || 'Island';
             }
+            
+            // Update sidebar island name based on global filter after a short delay
+            // This ensures the global filter is initialized first
+            setTimeout(() => {
+                updateSidebarIslandName();
+            }, 500);
+            
             if (data.campaignLogo && logoEl) {
                 // Check if it's a data URL (SVG) or regular URL
                 if (data.campaignLogo.startsWith('data:image/svg+xml')) {
@@ -4106,6 +4114,37 @@ function restoreGlobalFilterState() {
     } else {
         islandSelect.value = '';
     }
+    
+    // Update sidebar island name
+    updateSidebarIslandName();
+}
+
+// Update sidebar island name based on global filter selection
+function updateSidebarIslandName() {
+    const islandNameEl = document.getElementById('sidebar-island-name');
+    if (!islandNameEl) return;
+    
+    // Get selected island from global filter
+    const islandSelect = document.getElementById('global-filter-island');
+    let selectedIsland = '';
+    
+    if (islandSelect && islandSelect.value) {
+        selectedIsland = islandSelect.value;
+    } else if (window.globalFilterState && window.globalFilterState.island) {
+        selectedIsland = window.globalFilterState.island;
+    }
+    
+    // Update sidebar island name
+    if (selectedIsland) {
+        islandNameEl.textContent = selectedIsland;
+    } else {
+        // If no island selected, show default or all islands
+        if (window.campaignData && window.campaignData.island) {
+            islandNameEl.textContent = window.campaignData.island;
+        } else {
+            islandNameEl.textContent = 'All Islands';
+        }
+    }
 }
 
 // Apply global filter when navigating to a new page
@@ -4198,6 +4237,26 @@ function initializeGlobalFilter() {
         console.warn('[Global Filter] Filter elements not found');
         return;
     }
+    
+    // Helper function to enable filter controls
+    const enableFilterControls = () => {
+        constituencySelect.disabled = false;
+        islandSelect.disabled = false;
+        constituencySelect.style.opacity = '1';
+        islandSelect.style.opacity = '1';
+        constituencySelect.style.cursor = 'pointer';
+        islandSelect.style.cursor = 'pointer';
+    };
+    
+    // Helper function to disable filter controls
+    const disableFilterControls = () => {
+        constituencySelect.disabled = true;
+        islandSelect.disabled = true;
+        constituencySelect.style.opacity = '0.6';
+        islandSelect.style.opacity = '0.6';
+        constituencySelect.style.cursor = 'not-allowed';
+        islandSelect.style.cursor = 'not-allowed';
+    };
 
     // If user is an island user, set filter values and disable controls
     if (window.isIslandUser && window.islandUserData) {
@@ -4211,13 +4270,8 @@ function initializeGlobalFilter() {
             islandSelect.value = islandUserData.island;
         }
 
-        // Disable controls
-        constituencySelect.disabled = true;
-        islandSelect.disabled = true;
-        constituencySelect.style.opacity = '0.6';
-        islandSelect.style.opacity = '0.6';
-        constituencySelect.style.cursor = 'not-allowed';
-        islandSelect.style.cursor = 'not-allowed';
+        // Disable controls (keep disabled for island users)
+        disableFilterControls();
 
         // Populate island dropdown
         if (islandUserData.constituency && window.maldivesData && window.maldivesData.constituencyIslands) {
@@ -4236,6 +4290,9 @@ function initializeGlobalFilter() {
 
         window.globalFilterState.initialized = true;
         console.log('[Global Filter] Initialized for island user');
+        
+        // Update sidebar island name for island user
+        updateSidebarIslandName();
         return;
     }
 
@@ -4318,6 +4375,9 @@ function initializeGlobalFilter() {
             window.globalFilterState.island = null;
         }
         
+        // Update sidebar island name when constituency changes (island might be reset)
+        updateSidebarIslandName();
+        
         // Debounce filter application
         clearTimeout(constituencyDebounceTimer);
         constituencyDebounceTimer = setTimeout(() => {
@@ -4330,6 +4390,9 @@ function initializeGlobalFilter() {
         // Update global filter state immediately
         window.globalFilterState.island = this.value || null;
         
+        // Update sidebar island name
+        updateSidebarIslandName();
+        
         // Debounce filter application
         clearTimeout(islandDebounceTimer);
         islandDebounceTimer = setTimeout(() => {
@@ -4337,11 +4400,101 @@ function initializeGlobalFilter() {
         }, 300);
     });
 
+    // Enable filter controls after initialization (unless user is island user)
+    if (!window.isIslandUser) {
+        enableFilterControls();
+    }
+    
     window.globalFilterState.initialized = true;
     console.log('[Global Filter] Initialized successfully');
+    
+    // Update sidebar island name on initial load
+    updateSidebarIslandName();
 }
 
 // Initialize Refresh Button
+// Comprehensive refresh function to sync with Firebase
+async function refreshApplicationData() {
+    console.log('[Refresh] Starting comprehensive data refresh...');
+    
+    try {
+        // Clear all caches to force fresh data from Firebase
+        if (typeof window.clearAllCaches === 'function') {
+            window.clearAllCaches();
+        }
+        if (typeof window.clearVoterCache === 'function') {
+            window.clearVoterCache();
+        }
+        
+        // Clear ballots cache if it exists
+        if (window.ballotsCache) {
+            window.ballotsCache.data = [];
+            window.ballotsCache.lastFetch = null;
+        }
+        
+        // Clear transportation caches
+        ['flights', 'speedboats', 'taxis'].forEach(transportType => {
+            const cacheKey = `transportation_${transportType}`;
+            if (window[cacheKey]) {
+                window[cacheKey].data = [];
+                window[cacheKey].lastFetch = null;
+            }
+        });
+        
+        // Get current page to reload appropriate data
+        const currentPage = window.currentPage || getCurrentActivePage();
+        
+        // Reload all data based on current page
+        const refreshPromises = [];
+        
+        // Always reload dashboard data
+        if (typeof window.loadDashboardData === 'function') {
+            refreshPromises.push(window.loadDashboardData(true));
+        }
+        
+        // Reload current page data
+        if (currentPage) {
+            const pageLoaders = {
+                'voters': () => window.loadVotersData && window.loadVotersData(true),
+                'candidates': () => window.loadCandidatesData && window.loadCandidatesData(true),
+                'pledges': () => window.loadPledgesData && window.loadPledgesData(true),
+                'agents': () => window.loadAgentsData && window.loadAgentsData(true),
+                'events': () => window.loadEventsData && window.loadEventsData(true),
+                'calls': () => window.loadCallsData && window.loadCallsData(true),
+                'analytics': () => window.loadAnalyticsData && window.loadAnalyticsData(true),
+                'ballots': () => window.loadBallotsData && window.loadBallotsData(true),
+                'transportation': () => window.loadTransportationData && window.loadTransportationData(true),
+                'zero-day': () => window.loadZeroDayData && window.loadZeroDayData(true),
+                'settings': () => window.initializeSettingsPage && window.initializeSettingsPage()
+            };
+            
+            const loader = pageLoaders[currentPage];
+            if (loader) {
+                refreshPromises.push(loader());
+            } else if (typeof loadPageContent === 'function') {
+                refreshPromises.push(loadPageContent(currentPage));
+            }
+        }
+        
+        // Reload notifications
+        if (typeof window.loadNotifications === 'function') {
+            refreshPromises.push(window.loadNotifications());
+        }
+        
+        // Wait for all data to refresh
+        await Promise.all(refreshPromises);
+        
+        console.log('[Refresh] All data refreshed successfully');
+        return true;
+    } catch (error) {
+        console.error('[Refresh] Error refreshing data:', error);
+        throw error;
+    }
+}
+
+// Make refresh function globally available
+window.refreshApplicationData = refreshApplicationData;
+
 function initializeRefreshButton() {
     const refreshBtn = document.getElementById('refresh-btn');
     if (!refreshBtn) {
@@ -4350,33 +4503,68 @@ function initializeRefreshButton() {
     }
 
     refreshBtn.addEventListener('click', async function() {
-        // Add loading state
+        const statusMessage = document.getElementById('refresh-status-message');
+        
+        // Add loading state with rotation animation
         refreshBtn.disabled = true;
-        refreshBtn.style.opacity = '0.6';
+        refreshBtn.style.opacity = '0.7';
+        refreshBtn.style.cursor = 'wait';
+        
+        // Add rotation animation to SVG icon
+        const svgIcon = refreshBtn.querySelector('svg');
+        if (svgIcon) {
+            svgIcon.style.animation = 'spin 1s linear infinite';
+            svgIcon.style.transformOrigin = 'center';
+        }
+        
+        // Show "Syncing in progress" message
+        if (statusMessage) {
+            statusMessage.textContent = 'Syncing in progress...';
+            statusMessage.className = 'refresh-status-message refresh-status-syncing';
+            statusMessage.style.display = 'inline-block';
+        }
 
         try {
-            // Reload current page data
-            if (typeof loadPageContent === 'function') {
-                const currentPage = window.currentPage || 'settings';
-                await loadPageContent(currentPage);
+            await refreshApplicationData();
+            
+            // Show "Syncing Successful" message
+            if (statusMessage) {
+                statusMessage.textContent = 'Syncing Successful';
+                statusMessage.className = 'refresh-status-message refresh-status-success';
+                
+                // Hide message after 2 seconds
+                setTimeout(() => {
+                    if (statusMessage) {
+                        statusMessage.style.display = 'none';
+                        statusMessage.textContent = '';
+                    }
+                }, 2000);
             }
-
-            // Reload dashboard data if available
-            if (typeof loadDashboardData === 'function') {
-                await loadDashboardData(true);
-            }
-
-            // Reload notifications
-            if (typeof loadNotifications === 'function') {
-                await loadNotifications();
-            }
-
-            console.log('[Refresh] Data refreshed successfully');
         } catch (error) {
             console.error('[Refresh] Error refreshing data:', error);
+            
+            // Show error message
+            if (statusMessage) {
+                statusMessage.textContent = 'Syncing Failed';
+                statusMessage.className = 'refresh-status-message refresh-status-error';
+                
+                // Hide message after 2 seconds
+                setTimeout(() => {
+                    if (statusMessage) {
+                        statusMessage.style.display = 'none';
+                        statusMessage.textContent = '';
+                    }
+                }, 2000);
+            }
         } finally {
             refreshBtn.disabled = false;
             refreshBtn.style.opacity = '1';
+            refreshBtn.style.cursor = 'pointer';
+            
+            // Remove rotation animation
+            if (svgIcon) {
+                svgIcon.style.animation = '';
+            }
         }
     });
 

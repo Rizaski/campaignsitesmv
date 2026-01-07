@@ -2438,6 +2438,64 @@ body.sidebar-collapsed .main-content {
     stroke-width: 2;
 }
 
+/* Refresh Button Status Message */
+.refresh-btn-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-direction: row-reverse; /* Reverse order so message appears on left */
+}
+
+.refresh-status-message {
+    font-size: 12px;
+    font-weight: 500;
+    padding: 4px 10px;
+    border-radius: 6px;
+    white-space: nowrap;
+    animation: fadeInSlide 0.3s ease-out;
+    pointer-events: none;
+    user-select: none;
+}
+
+.refresh-status-syncing {
+    color: var(--info-color);
+    background: rgba(2, 132, 199, 0.1);
+    border: 1px solid rgba(2, 132, 199, 0.2);
+}
+
+.refresh-status-success {
+    color: var(--success-color);
+    background: rgba(5, 150, 105, 0.1);
+    border: 1px solid rgba(5, 150, 105, 0.2);
+}
+
+.refresh-status-error {
+    color: var(--danger-color);
+    background: rgba(220, 38, 38, 0.1);
+    border: 1px solid rgba(220, 38, 38, 0.2);
+}
+
+@keyframes fadeInSlide {
+    from {
+        opacity: 0;
+        transform: translateX(10px); /* Slide from right since message is on left */
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+/* Enhanced spin animation for refresh button */
+.refresh-btn svg {
+    transition: transform 0.3s ease;
+}
+
+.refresh-btn:active svg {
+    transform: rotate(180deg);
+}
+
 .profile-avatar {
     width: 35px;
     height: 35px;
