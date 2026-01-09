@@ -49,6 +49,7 @@ import {
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
+window.app = app; // Expose globally for transportation coordinator view
 const auth = getAuth(app);
 
 // Set authentication persistence to LOCAL (persists across browser sessions)
@@ -3223,10 +3224,29 @@ window.addEventListener('DOMContentLoaded', async () => {
         const urlParams = new URLSearchParams(window.location.search);
         const ballotId = urlParams.get('ballot');
         const token = urlParams.get('token');
+        const transportId = urlParams.get('transport');
+        const transportType = urlParams.get('type');
 
         if (ballotId && token) {
             // This is an officer view request - handle it separately
             await handleOfficerBallotView(ballotId, token);
+            return;
+        }
+
+        if (transportId && token) {
+            // This is a transportation coordinator view request - handle it separately
+            // transportId is actually the campaign email/userEmail
+            console.log('[DOMContentLoaded] Transportation coordinator link detected:', { transportId, token });
+            if (window.handleTransportationCoordinatorView) {
+                await window.handleTransportationCoordinatorView(transportId, token);
+            } else {
+                console.error('Transportation coordinator view handler not found');
+                if (window.showOfficerError) {
+                    window.showOfficerError('Transportation coordinator view handler not available. Please refresh the page.');
+                } else {
+                    alert('Transportation coordinator view handler not available. Please refresh the page.');
+                }
+            }
             return;
         }
 
@@ -3478,6 +3498,9 @@ function showOfficerError(message) {
         </div>
     `;
 }
+
+// Expose showOfficerError globally
+window.showOfficerError = showOfficerError;
 
 // Setup real-time listener for ballot status changes
 function setupBallotStatusListener(ballotId) {
@@ -4077,7 +4100,7 @@ function refreshCurrentPageData() {
         },
         'zero-day': () => {
             if (typeof window.loadZeroDayData === 'function') {
-                window.loadZeroDayData();
+                window.loadZeroDayData(true); // Force refresh when filter changes
             }
         },
         'settings': () => {

@@ -358,7 +358,9 @@ async function loadAssignedVoters() {
             if (!votersQuery || voterData.email === window.campaignEmail || voterData.campaignEmail === window.campaignEmail) {
                 assignedVoters.push({
                     id: doc.id,
-                    ...voterData
+                    ...voterData,
+                    // Ensure voted status is properly included (check multiple possible fields)
+                    voted: voterData.voted === true || voterData.voted === 'true' || (voterData.votedAt !== undefined && voterData.votedAt !== null)
                 });
             }
         });
@@ -478,11 +480,13 @@ async function loadAssignedVotersSection() {
                 pledgeStatusHtml = '<span class="status-badge status-pending" style="font-size: 12px;">Undecided</span>';
             }
 
+            // Use stored voterNumber if available, otherwise fall back to index + 1
+            const displayNumber = voter.voterNumber || (index + 1);
             html += `
                 <tr style="border-bottom: 1px solid var(--border-light); transition: background 0.2s;" 
                     onmouseover="this.style.background='var(--light-color)'" 
                     onmouseout="this.style.background='white'">
-                    <td style="padding: 14px 16px; text-align: center; color: var(--text-light); font-weight: 600; font-size: 13px;">${index + 1}</td>
+                    <td style="padding: 14px 16px; text-align: center; color: var(--text-light); font-weight: 600; font-size: 13px;">${displayNumber}</td>
                     <td style="padding: 14px 16px;">
                         ${imageUrl ? 
                             `<img src="${imageUrl}" alt="${voter.name}" class="voter-image" loading="lazy" style="width: 36px; height: 36px; border-radius: 50%; object-fit: cover; border: 2px solid var(--border-color);">` :
@@ -490,9 +494,14 @@ async function loadAssignedVotersSection() {
                         }
                     </td>
                     <td style="padding: 14px 16px; font-size: 13px; color: var(--text-color); font-weight: 500;">${voter.idNumber || voter.voterId || 'N/A'}</td>
-                    <td style="padding: 14px 16px; font-size: 13px; color: var(--text-color); font-weight: 600;">${voter.name || 'N/A'}</td>
+                    <td style="padding: 14px 16px; font-size: 13px; color: var(--text-color); font-weight: 600;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            ${voter.name || 'N/A'}
+                            ${(voter.voted === true) ? '<span class="status-badge status-success" style="font-size: 10px; padding: 2px 6px; border-radius: 10px; background: var(--success-color); color: white; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Voted</span>' : ''}
+                        </div>
+                    </td>
                     <td style="padding: 14px 16px; font-size: 13px; color: var(--text-color);">${voter.island || 'N/A'}</td>
-                    <td style="padding: 14px 16px; font-size: 13px; color: var(--text-color);">${voter.number || voter.phone || 'N/A'}</td>
+                    <td style="padding: 14px 16px; font-size: 13px; color: var(--text-color); font-family: monospace;">${voter.number || voter.phone || voter.phoneNumber || 'N/A'}</td>
                     <td style="padding: 14px 16px;">${pledgeStatusHtml}</td>
                     <td style="padding: 14px 16px; text-align: center; position: relative;">
                         <div class="agent-voter-actions-inline" data-voter-id="${voter.id}">

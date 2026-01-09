@@ -180,15 +180,15 @@ function getVoterFormTemplate() {
                     <div style="pointer-events: none; z-index: 0; position: relative;">
                         <div style="width: 64px; height: 64px; margin: 0 auto 16px; background: linear-gradient(135deg, var(--primary-color), rgba(111, 193, 218, 0.8)); border-radius: 16px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(111, 193, 218, 0.3);">
                             <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                                <polyline points="17 8 12 3 7 8"></polyline>
-                                <line x1="12" y1="3" x2="12" y2="15"></line>
-                            </svg>
-                        </div>
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="17 8 12 3 7 8"></polyline>
+                            <line x1="12" y1="3" x2="12" y2="15"></line>
+                        </svg>
+                    </div>
                         <p style="margin: 0 0 6px 0; font-size: 16px; font-weight: 700; color: var(--text-color); letter-spacing: -0.3px;">Upload voter photo</p>
                         <p style="margin: 0 0 8px 0; font-size: 14px; color: var(--text-light);">Click to browse or drag and drop</p>
                         <p style="margin: 0; font-size: 12px; color: var(--text-muted); padding: 6px 12px; background: rgba(111, 193, 218, 0.1); border-radius: 20px; display: inline-block;">JPG, PNG up to 5MB</p>
-                    </div>
+                </div>
                 </div>
                 <div id="voter-image-preview" style="margin-top: 20px; display: none; text-align: center;">
                     <div style="position: relative; display: inline-block;">
@@ -719,9 +719,9 @@ function getTransportationFormTemplate() {
             <input type="text" id="transport-constituency" name="transport-constituency" readonly style="background: var(--light-color); cursor: not-allowed;" value="${(window.campaignData && window.campaignData.constituency) ? window.campaignData.constituency : ''}" required>
         </div>
         <div class="form-group">
-            <label for="transport-island">Island *</label>
-            <select id="transport-island" name="transport-island" required>
-                <option value="">Select island</option>
+                    <label for="transport-island">Island *</label>
+                    <select id="transport-island" name="transport-island" required>
+                        <option value="">Select island</option>
             </select>
         </div>
     </div>
@@ -775,9 +775,9 @@ function getTransportationFormTemplate() {
             <input type="text" id="transport-constituency-sb" name="transport-constituency-sb" readonly style="background: var(--light-color); cursor: not-allowed;" value="${(window.campaignData && window.campaignData.constituency) ? window.campaignData.constituency : ''}" required>
         </div>
         <div class="form-group">
-            <label for="transport-island-sb">Island *</label>
-            <select id="transport-island-sb" name="transport-island-sb" required>
-                <option value="">Select island</option>
+                    <label for="transport-island-sb">Island *</label>
+                    <select id="transport-island-sb" name="transport-island-sb" required>
+                        <option value="">Select island</option>
             </select>
         </div>
     </div>
@@ -839,9 +839,9 @@ function getTransportationFormTemplate() {
             <input type="text" id="transport-constituency-taxi" name="transport-constituency-taxi" readonly style="background: var(--light-color); cursor: not-allowed;" value="${(window.campaignData && window.campaignData.constituency) ? window.campaignData.constituency : ''}" required>
         </div>
         <div class="form-group">
-            <label for="transport-island-taxi">Island *</label>
-            <select id="transport-island-taxi" name="transport-island-taxi" required>
-                <option value="">Select island</option>
+    <label for="transport-island-taxi">Island *</label>
+    <select id="transport-island-taxi" name="transport-island-taxi" required>
+    <option value="">Select island</option>
             </select>
         </div>
     </div>
@@ -1102,10 +1102,77 @@ voters / $ {
                 const idNumber = getIdNumber();
                 const name = getName();
 
+                // Get next voter number for single import
+                let nextVoterNumber = 1;
+                if (!editVoterId) {
+                    try {
+                        const {
+                            collection,
+                            query,
+                            where,
+                            getDocs,
+                            orderBy,
+                            limit
+                        } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
+                        // Try to get max voterNumber first
+                        try {
+                            const maxVoterQuery = query(
+                                collection(window.db, 'voters'),
+                                where('email', '==', window.userEmail),
+                                orderBy('voterNumber', 'desc'),
+                                limit(1)
+                            );
+                            const maxVoterSnapshot = await getDocs(maxVoterQuery);
+                            if (!maxVoterSnapshot.empty) {
+                                const maxVoter = maxVoterSnapshot.docs[0].data();
+                                if (maxVoter.voterNumber && typeof maxVoter.voterNumber === 'number') {
+                                    nextVoterNumber = maxVoter.voterNumber + 1;
+                                }
+                            }
+                        } catch (orderByError) {
+                            // If orderBy fails (field doesn't exist or index missing), count all voters and find max
+                            console.warn('Could not query by voterNumber, counting voters:', orderByError);
+                            const countQuery = query(
+                                collection(window.db, 'voters'),
+                                where('email', '==', window.userEmail)
+                            );
+                            const countSnapshot = await getDocs(countQuery);
+                            let maxNumber = 0;
+                            countSnapshot.docs.forEach(doc => {
+                                const data = doc.data();
+                                if (data.voterNumber && typeof data.voterNumber === 'number' && data.voterNumber > maxNumber) {
+                                    maxNumber = data.voterNumber;
+                                }
+                            });
+                            nextVoterNumber = maxNumber > 0 ? maxNumber + 1 : countSnapshot.size + 1;
+                        }
+                    } catch (error) {
+                        console.warn('Could not get max voter number, using count:', error);
+                        // Fallback: count total voters
+                        try {
+                            const {
+                                collection,
+                                query,
+                                where,
+                                getDocs
+                            } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
+                            const countQuery = query(
+                                collection(window.db, 'voters'),
+                                where('email', '==', window.userEmail)
+                            );
+                            const countSnapshot = await getDocs(countQuery);
+                            nextVoterNumber = countSnapshot.size + 1;
+                        } catch (countError) {
+                            console.warn('Could not count voters, using 1:', countError);
+                        }
+                    }
+                }
+
                 dataToSave = {
                     idNumber: idNumber,
                     name: name,
                     voterId: idNumber || `VOT-${Date.now()}`,
+                    voterNumber: editVoterId ? undefined : nextVoterNumber, // Only set for new voters, preserve existing for edits
                     dateOfBirth: dob || null,
                     age: age || null,
                     gender: cleanFormValue(formData.get('voter-gender')),
@@ -1114,13 +1181,18 @@ voters / $ {
                     ballot: cleanFormValue(formData.get('voter-ballot')),
                     permanentAddress: getPermanentAddress(),
                     currentLocation: getCurrentLocation(),
-                    number: cleanFormValue(formData.get('voter-number')),
+                    number: cleanValue(formData.get('voter-number')),
                     imageUrl: imageUrl || null,
                     image: imageUrl || null, // Keep for backward compatibility
                     verified: verifiedStatus,
                     email: window.userEmail, // Always use 'email' field for voters
                     registeredAt: registeredAtValue
                 };
+                
+                // Remove voterNumber from update if editing (preserve existing)
+                if (editVoterId) {
+                    delete dataToSave.voterNumber;
+                }
 
                 // Debug logging
                 console.log('[handleFormSubmit] Voter data to save:', dataToSave);
@@ -1269,19 +1341,19 @@ voters / $ {
                 // Handle candidate selection - check if multiple selection is allowed
                 // Always allow multiple candidate selection
                 let pledgeCandidates = [];
-                const candidateSelect = document.getElementById('pledge-candidate');
-                if (candidateSelect) {
-                    const selectedOptions = Array.from(candidateSelect.selectedOptions);
-                    pledgeCandidates = selectedOptions
-                        .filter(option => option.value && option.value.trim())
-                        .map(option => option.value.trim());
-                }
+                    const candidateSelect = document.getElementById('pledge-candidate');
+                    if (candidateSelect) {
+                        const selectedOptions = Array.from(candidateSelect.selectedOptions);
+                        pledgeCandidates = selectedOptions
+                            .filter(option => option.value && option.value.trim())
+                            .map(option => option.value.trim());
+                    }
 
                 // Fallback: if no multiple selection, try single value from formData
-                if (pledgeCandidates.length === 0) {
+                    if (pledgeCandidates.length === 0) {
                     const pledgeCandidate = formData.get('pledge-candidate');
                     if (pledgeCandidate && pledgeCandidate.trim()) {
-                        pledgeCandidates = [pledgeCandidate.trim()];
+                    pledgeCandidates = [pledgeCandidate.trim()];
                     }
                 }
 
@@ -1690,6 +1762,16 @@ voters / $ {
 
             // Close modal
             closeModal();
+
+            // Auto-sync ballots from voter database if ballot box was assigned/changed
+            if (dataToSave.ballot && window.autoDetectBallotBoxes) {
+                console.log('[handleFormSubmit] Auto-syncing ballots after voter update...');
+                try {
+                    await window.autoDetectBallotBoxes();
+                } catch (syncError) {
+                    console.warn('[handleFormSubmit] Ballot sync failed (non-critical):', syncError);
+                }
+            }
 
             // Reload voters table
             if (window.reloadTableData) {
@@ -2332,6 +2414,16 @@ voters / $ {
                 const docRef = await addDoc(collection(window.db, collectionName), dataToSave);
                 console.log(`[handleFormSubmit] Successfully saved ${type} with ID:`, docRef.id);
 
+                // Auto-sync ballots from voter database if voter was created with ballot box
+                if (type === 'voter' && dataToSave.ballot && window.autoDetectBallotBoxes) {
+                    console.log('[handleFormSubmit] Auto-syncing ballots after new voter creation...');
+                    try {
+                        await window.autoDetectBallotBoxes();
+                    } catch (syncError) {
+                        console.warn('[handleFormSubmit] Ballot sync failed (non-critical):', syncError);
+                    }
+                }
+
                 // If call was made via link, increment call count
                 if (type === 'call') {
                     // Check if callLinkData exists and has linkId
@@ -2390,6 +2482,16 @@ voters / $ {
                     setTimeout(() => {
                         window.setupBallotDropdown();
                     }, 300);
+                }
+
+                // Auto-sync ballots from voter database if voter was created/updated with ballot box
+                if (type === 'voter' && dataToSave.ballot && window.autoDetectBallotBoxes) {
+                    console.log('[handleFormSubmit] Auto-syncing ballots after voter save...');
+                    try {
+                        await window.autoDetectBallotBoxes();
+                    } catch (syncError) {
+                        console.warn('[handleFormSubmit] Ballot sync failed (non-critical):', syncError);
+                    }
                 }
 
                 // Close modal
@@ -3506,7 +3608,7 @@ async function setupPledgeCandidateDropdown() {
     if (!candidateSelect) return;
 
     // Always allow multiple selection for all campaign types
-    candidateSelect.setAttribute('multiple', 'multiple');
+        candidateSelect.setAttribute('multiple', 'multiple');
     candidateSelect.size = 5; // Show 5 options at once for better visibility
     candidateSelect.style.minHeight = '140px';
     candidateSelect.style.padding = '10px';
@@ -3517,9 +3619,9 @@ async function setupPledgeCandidateDropdown() {
     candidateSelect.style.lineHeight = '1.5';
 
     // Show hint for multiple selection
-    const hint = document.getElementById('pledge-candidate-hint');
-    if (hint) {
-        hint.style.display = 'block';
+        const hint = document.getElementById('pledge-candidate-hint');
+        if (hint) {
+            hint.style.display = 'block';
         hint.textContent = 'Hold Ctrl/Cmd (Windows/Mac) or Shift to select multiple candidates. A pledge will be created for each selected candidate.';
         hint.style.color = 'var(--primary-color)';
         hint.style.fontWeight = '500';
@@ -4056,6 +4158,7 @@ async function handleBatchVoterImport(csvDataArray) {
                         idNumber: idNumber,
                         name: name,
                         voterId: idNumber || `VOT-${Date.now()}-${i}`,
+                        voterNumber: i + 1, // Store original row number from CSV
                         dateOfBirth: cleanValue(row.dateofbirth || row['date of birth'] || row.dob || row.birthdate),
                         age: ageValue,
                         gender: cleanValue((row.gender || row.sex || '').toLowerCase()),
@@ -4143,6 +4246,16 @@ async function handleBatchVoterImport(csvDataArray) {
         // Clear cache since new voters were imported
         if (window.clearVoterCache) {
             window.clearVoterCache();
+        }
+
+        // Auto-sync ballots from voter database
+        if (window.autoDetectBallotBoxes) {
+            console.log('[handleBatchVoterImport] Auto-syncing ballots from voter database...');
+            try {
+                await window.autoDetectBallotBoxes();
+            } catch (syncError) {
+                console.warn('[handleBatchVoterImport] Ballot sync failed (non-critical):', syncError);
+            }
         }
 
         // Close modal and immediately reload voter table data
@@ -4412,7 +4525,7 @@ function handleImagePreview(input) {
                         }
                     }
                 } else {
-                    uploadArea.style.display = 'none';
+                uploadArea.style.display = 'none';
                 }
             }
         };

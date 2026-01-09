@@ -10333,7 +10333,7 @@ async function saveZeroDayToggle(enabled) {
 }
 
 // Load Zero Day data
-async function loadZeroDayData() {
+async function loadZeroDayData(forceRefresh = false) {
     if (!window.db || !window.userEmail) return;
 
     // Show skeleton animations for all tables simultaneously
@@ -10342,10 +10342,26 @@ async function loadZeroDayData() {
     showTransportationSkeleton('speedboats');
     showTransportationSkeleton('taxis');
 
+    // Clear caches if force refresh (e.g., when global filter changes)
+    if (forceRefresh) {
+        if (window.ballotsCache) {
+            window.ballotsCache.data = [];
+            window.ballotsCache.lastFetch = null;
+        }
+        // Clear transportation caches
+        ['flights', 'speedboats', 'taxis'].forEach(type => {
+            const cacheKey = `transportation_${type}`;
+            if (window[cacheKey]) {
+                window[cacheKey].data = [];
+                window[cacheKey].lastFetch = null;
+            }
+        });
+    }
+
     // Load all data in parallel (skip skeleton since we already showed them)
     await Promise.all([
-        loadBallotsData(false, true), // skipSkeleton = true
-        loadTransportationData(false, true) // skipSkeleton = true
+        loadBallotsData(forceRefresh, true), // forceRefresh, skipSkeleton = true
+        loadTransportationData(forceRefresh, true) // forceRefresh, skipSkeleton = true
     ]);
 }
 
@@ -10384,9 +10400,29 @@ async function loadBallotsData(forceRefresh = false, skipSkeleton = false) {
         window.ballotsCache.lastFetch &&
         (now - window.ballotsCache.lastFetch) < window.ballotsCache.cacheDuration) {
         console.log('[Ballots] Using cached data');
+
+        // Apply global filter to cached data
+        let filteredBallots = window.ballotsCache.data;
+        const globalFilter = window.globalFilterState || {
+            constituency: null,
+            island: null,
+            initialized: false
+        };
+        if (globalFilter.initialized && (globalFilter.constituency || globalFilter.island)) {
+            filteredBallots = filteredBallots.filter(ballot => {
+                if (globalFilter.island) {
+                    return ballot.island === globalFilter.island;
+                } else if (globalFilter.constituency) {
+                    return ballot.constituency === globalFilter.constituency;
+                }
+                return true;
+            });
+            console.log(`[Ballots] Applied global filter to cached data: ${filteredBallots.length} ballots`);
+        }
+
         // Small delay to show skeleton briefly
         setTimeout(() => {
-            renderBallotsTable(window.ballotsCache.data);
+            renderBallotsTable(filteredBallots);
         }, 300);
         return;
     }
@@ -10681,9 +10717,37 @@ async function loadTransportationByType(type, forceRefresh = false, skipSkeleton
         window[cacheKey].lastFetch &&
         (now - window[cacheKey].lastFetch) < window[cacheKey].cacheDuration) {
         console.log(`[Transportation ${type}] Using cached data`);
+
+        // Apply global filter to cached data (create a copy to avoid modifying cache)
+        let filteredTransport = [...window[cacheKey].data];
+        const globalFilter = window.globalFilterState || {
+            constituency: null,
+            island: null,
+            initialized: false
+        };
+        if (globalFilter.initialized && (globalFilter.constituency || globalFilter.island)) {
+            filteredTransport = filteredTransport.filter(transport => {
+                if (globalFilter.island) {
+                    return transport.island === globalFilter.island;
+                } else if (globalFilter.constituency) {
+                    return transport.constituency === globalFilter.constituency;
+                }
+                return true;
+            });
+            console.log(`[Transportation ${type}] Applied global filter to cached data: ${filteredTransport.length} records`);
+        }
+
         // Small delay to show skeleton briefly
         setTimeout(() => {
-            renderTransportationTable(type, window[cacheKey].data);
+            try {
+                renderTransportationTable(type, filteredTransport);
+            } catch (renderError) {
+                console.error(`[Transportation ${type}] Error rendering table:`, renderError);
+                const tbody = document.getElementById(`${type}-table-body`);
+                if (tbody) {
+                    tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; padding: 40px; color: var(--danger-color);">Error rendering ${type} table</td></tr>`;
+                }
+            }
         }, 300);
         return;
     }
@@ -10694,7 +10758,7 @@ async function loadTransportationByType(type, forceRefresh = false, skipSkeleton
         const localTransport = JSON.parse(localStorage.getItem(localStorageKey) || '[]');
         console.log(`[Transportation ${type}] Loaded from local storage:`, localTransport.length);
 
-        const allTransport = [];
+        let allTransport = [];
 
         // Add local storage items (pending sync)
         localTransport.forEach(localItem => {
@@ -10718,28 +10782,78 @@ async function loadTransportationByType(type, forceRefresh = false, skipSkeleton
                     getDocs
                 } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
 
-                const transportQuery = query(
-                    collection(window.db, 'transportation'),
-                    where('email', '==', window.userEmail),
-                    where('type', '==', type),
-                    orderBy('departureTime', 'asc')
-                );
+                // Try query with orderBy first
+                let snapshot;
+                try {
+                    const transportQuery = query(
+                        collection(window.db, 'transportation'),
+                        where('email', '==', window.userEmail),
+                        where('type', '==', type),
+                        orderBy('departureTime', 'asc')
+                    );
+                    snapshot = await getDocs(transportQuery);
+                } catch (orderByError) {
+                    // If orderBy fails (e.g., missing index), try without orderBy
+                    console.warn(`[Transportation ${type}] Query with orderBy failed, trying without orderBy:`, orderByError);
+                    try {
+                        const transportQueryNoOrder = query(
+                            collection(window.db, 'transportation'),
+                            where('email', '==', window.userEmail),
+                            where('type', '==', type)
+                        );
+                        snapshot = await getDocs(transportQueryNoOrder);
+                    } catch (queryError) {
+                        // If that also fails, try with just email
+                        console.warn(`[Transportation ${type}] Query with type filter failed, trying with email only:`, queryError);
+                        const transportQueryEmailOnly = query(
+                            collection(window.db, 'transportation'),
+                            where('email', '==', window.userEmail)
+                        );
+                        snapshot = await getDocs(transportQueryEmailOnly);
+                    }
+                }
 
-                const snapshot = await getDocs(transportQuery);
-
-                // Add Firebase items
+                // Add Firebase items (filter by type in memory if needed)
                 snapshot.docs.forEach(doc => {
                     const data = doc.data();
-                    allTransport.push({
-                        id: doc.id,
-                        ...data,
-                        _isLocal: false
-                    });
+                    // Only add if type matches (in case we queried without type filter)
+                    if (data.type === type) {
+                        allTransport.push({
+                            id: doc.id,
+                            ...data,
+                            _isLocal: false
+                        });
+                    }
                 });
             } catch (firebaseError) {
-                console.warn(`[Transportation ${type}] Error loading from Firebase:`, firebaseError);
+                console.error(`[Transportation ${type}] Error loading from Firebase:`, firebaseError);
+                console.error(`[Transportation ${type}] Error details:`, {
+                    code: firebaseError.code,
+                    message: firebaseError.message
+                });
                 // Continue with local storage data only
             }
+        }
+
+        // Apply global filter
+        const globalFilter = window.globalFilterState || {
+            constituency: null,
+            island: null,
+            initialized: false
+        };
+        if (globalFilter.initialized && (globalFilter.constituency || globalFilter.island)) {
+            const beforeFilterCount = allTransport.length;
+            allTransport = allTransport.filter(transport => {
+                // Island takes priority - if island selected, filter by island only
+                if (globalFilter.island) {
+                    return transport.island === globalFilter.island;
+                } else if (globalFilter.constituency) {
+                    // If constituency selected but no island, filter by constituency only
+                    return transport.constituency === globalFilter.constituency;
+                }
+                return true;
+            });
+            console.log(`[Transportation ${type}] After global filter (constituency: ${globalFilter.constituency || 'All'}, island: ${globalFilter.island || 'All'}): ${allTransport.length} records (was ${beforeFilterCount})`);
         }
 
         // Sort by departure time
@@ -10761,16 +10875,47 @@ async function loadTransportationByType(type, forceRefresh = false, skipSkeleton
             syncPendingTransportation(localTransport, type);
         }
     } catch (error) {
-        console.error(`Error loading ${type}:`, error);
+        console.error(`[Transportation ${type}] Error loading:`, error);
+        console.error(`[Transportation ${type}] Error details:`, {
+            message: error.message,
+            code: error.code,
+            stack: error.stack
+        });
+
         // Try to render from cache if available
         if (window[cacheKey] && window[cacheKey].data.length > 0) {
             console.log(`[Transportation ${type}] Using cached data due to error`);
-            renderTransportationTable(type, window[cacheKey].data);
+            try {
+                // Apply global filter to cached data before rendering
+                let cachedData = [...window[cacheKey].data];
+                const globalFilter = window.globalFilterState || {
+                    constituency: null,
+                    island: null,
+                    initialized: false
+                };
+                if (globalFilter.initialized && (globalFilter.constituency || globalFilter.island)) {
+                    cachedData = cachedData.filter(transport => {
+                        if (globalFilter.island) {
+                            return transport.island === globalFilter.island;
+                        } else if (globalFilter.constituency) {
+                            return transport.constituency === globalFilter.constituency;
+                        }
+                        return true;
+                    });
+                }
+                renderTransportationTable(type, cachedData);
+            } catch (renderError) {
+                console.error(`[Transportation ${type}] Error rendering cached data:`, renderError);
+                const errorMsg = type === 'flights' ? 'Error loading flights' :
+                    type === 'speedboats' ? 'Error loading speed boats' :
+                    'Error loading taxis';
+                tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; padding: 40px; color: var(--danger-color);">${errorMsg}: ${error.message || 'Unknown error'}</td></tr>`;
+            }
         } else {
             const errorMsg = type === 'flights' ? 'Error loading flights' :
                 type === 'speedboats' ? 'Error loading speed boats' :
                 'Error loading taxis';
-            tbody.innerHTML = `<tr><td colspan="7" style="text-align: center; padding: 40px; color: var(--danger-color);">${errorMsg}</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; padding: 40px; color: var(--danger-color);">${errorMsg}: ${error.message || 'Unknown error'}</td></tr>`;
         }
     }
 }
@@ -10810,12 +10955,18 @@ function renderTransportationTable(type, transportItems) {
                 <td>${item.route || 'N/A'}</td>
                 <td>${item.departureTime || 'N/A'}</td>
                 <td>${item.arrivalTime || 'N/A'}</td>
-                <td>${item.capacity || 0}</td>
+                <td>${item.capacity || 0} / ${(item.assignedVoters && Array.isArray(item.assignedVoters)) ? item.assignedVoters.length : 0}</td>
                 <td><span class="status-badge ${item.status === 'confirmed' ? 'status-active' : 'status-pending'}">${item.status || 'Pending'}</span></td>
                 <td>
                     <div class="table-actions">
                         ${!item._isLocal ? `
-                        <button class="icon-btn" title="Generate Shareable Link" onclick="generateTransportationLink('${item.id}', '${type}', '${item.flightNumber || item.boatName || item.taxiNumber || item.number || ''}')" style="color: var(--secondary-color);">
+                        <button class="icon-btn" title="View Assigned Voters" onclick="viewTransportationVoters('${item.id}', '${type}')" style="color: var(--primary-color);">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                        </button>
+                        <button class="icon-btn" title="Add Voters" onclick="addVotersToTransportation('${item.id}', '${type}', '${(item.island || '').replace(/'/g, "\\'")}')" style="color: var(--success-color);">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><line x1="19" y1="8" x2="19" y2="14"></line><line x1="22" y1="11" x2="16" y2="11"></line></svg>
+                        </button>
+                        <button class="icon-btn" title="Manage Coordinator Link (All Transportation)" onclick="generateTransportationLink('${item.id}', '${type}', '${item.flightNumber || item.boatName || item.taxiNumber || item.number || ''}')" style="color: var(--secondary-color);">
                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
                         </button>
                         <button class="icon-btn" title="Edit" onclick="editTransportation('${item.id}', '${type}')">
@@ -10835,12 +10986,18 @@ function renderTransportationTable(type, transportItems) {
                 <td>${item.route || 'N/A'}</td>
                 <td>${item.departureTime || 'N/A'}</td>
                 <td>${item.arrivalTime || 'N/A'}</td>
-                <td>${item.capacity || 0}</td>
+                <td>${item.capacity || 0} / ${(item.assignedVoters && Array.isArray(item.assignedVoters)) ? item.assignedVoters.length : 0}</td>
                 <td><span class="status-badge ${item.status === 'confirmed' ? 'status-active' : 'status-pending'}">${item.status || 'Pending'}</span></td>
                 <td>
                     <div class="table-actions">
                         ${!item._isLocal ? `
-                        <button class="icon-btn" title="Generate Shareable Link" onclick="generateTransportationLink('${item.id}', '${type}', '${item.flightNumber || item.boatName || item.taxiNumber || item.number || ''}')" style="color: var(--secondary-color);">
+                        <button class="icon-btn" title="View Assigned Voters" onclick="viewTransportationVoters('${item.id}', '${type}')" style="color: var(--primary-color);">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                        </button>
+                        <button class="icon-btn" title="Add Voters" onclick="addVotersToTransportation('${item.id}', '${type}', '${(item.island || '').replace(/'/g, "\\'")}')" style="color: var(--success-color);">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><line x1="19" y1="8" x2="19" y2="14"></line><line x1="22" y1="11" x2="16" y2="11"></line></svg>
+                        </button>
+                        <button class="icon-btn" title="Manage Coordinator Link (All Transportation)" onclick="generateTransportationLink('${item.id}', '${type}', '${item.flightNumber || item.boatName || item.taxiNumber || item.number || ''}')" style="color: var(--secondary-color);">
                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
                         </button>
                         <button class="icon-btn" title="Edit" onclick="editTransportation('${item.id}', '${type}')">
@@ -10865,7 +11022,13 @@ function renderTransportationTable(type, transportItems) {
                 <td>
                     <div class="table-actions">
                         ${!item._isLocal ? `
-                        <button class="icon-btn" title="Generate Shareable Link" onclick="generateTransportationLink('${item.id}', '${type}', '${item.flightNumber || item.boatName || item.taxiNumber || item.number || ''}')" style="color: var(--secondary-color);">
+                        <button class="icon-btn" title="View Assigned Voters" onclick="viewTransportationVoters('${item.id}', '${type}')" style="color: var(--primary-color);">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                        </button>
+                        <button class="icon-btn" title="Add Voters" onclick="addVotersToTransportation('${item.id}', '${type}', '${(item.island || '').replace(/'/g, "\\'")}')" style="color: var(--success-color);">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><line x1="19" y1="8" x2="19" y2="14"></line><line x1="22" y1="11" x2="16" y2="11"></line></svg>
+                        </button>
+                        <button class="icon-btn" title="Manage Coordinator Link (All Transportation)" onclick="generateTransportationLink('${item.id}', '${type}', '${item.flightNumber || item.boatName || item.taxiNumber || item.number || ''}')" style="color: var(--secondary-color);">
                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
                         </button>
                         <button class="icon-btn" title="Edit" onclick="editTransportation('${item.id}', '${type}')">
@@ -12470,8 +12633,7 @@ window.generateBallotLink = async (ballotId, ballotNumber) => {
         const {
             doc,
             getDoc,
-            updateDoc,
-            serverTimestamp
+            updateDoc
         } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
 
         // Get ballot data
@@ -12593,6 +12755,7 @@ window.copyShareLink = () => {
 };
 
 // Generate shareable link for transportation
+// Generate or retrieve transportation coordinator link (ONE link for ALL transportation types)
 window.generateTransportationLink = async (transportId, type, transportNumber) => {
     if (!window.db || !window.userEmail) {
         if (window.showErrorDialog) {
@@ -12609,65 +12772,121 @@ window.generateTransportationLink = async (transportId, type, transportNumber) =
             serverTimestamp
         } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
 
-        // Get transportation data
-        const transportRef = doc(window.db, 'transportation', transportId);
-        const transportSnap = await getDoc(transportRef);
+        // Check if link already exists in campaign settings
+        const campaignRef = doc(window.db, 'clients', window.userEmail);
+        const campaignSnap = await getDoc(campaignRef);
 
-        if (!transportSnap.exists()) {
-            if (window.showErrorDialog) {
-                window.showErrorDialog('Transportation record not found.', 'Error');
+        let token, tempPassword, shareLink;
+
+        if (campaignSnap.exists()) {
+            const campaignData = campaignSnap.data();
+
+            // If link already exists, use existing token and password
+            if (campaignData.transportationShareToken && campaignData.transportationCoordinatorPassword) {
+                token = campaignData.transportationShareToken;
+                tempPassword = campaignData.transportationCoordinatorPassword;
+
+                // Generate the shareable link
+                const baseUrl = window.location.origin + window.location.pathname;
+                shareLink = `${baseUrl}?transport=${window.userEmail}&token=${token}`;
+
+                // Show existing link
+                showTransportationLinkModal('All Transportation Types', 'All Flights, Speed Boats & Taxis', shareLink, tempPassword, true);
+                return;
             }
-            return;
         }
 
-        const transportData = transportSnap.data();
+        // Generate new token and password if link doesn't exist
+        token = 'transport_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        tempPassword = Math.floor(100000 + Math.random() * 900000).toString();
 
-        // Generate unique token for the transportation link
-        const token = 'transport_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        // Store in campaign settings for coordinator access to ALL transportations
+        if (campaignSnap.exists()) {
+            await updateDoc(campaignRef, {
+                transportationCoordinatorPassword: tempPassword,
+                transportationShareToken: token,
+                transportationLinkGeneratedAt: serverTimestamp()
+            });
+        } else {
+            // Create campaign document if it doesn't exist
+            const {
+                setDoc
+            } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
+            await setDoc(campaignRef, {
+                transportationCoordinatorPassword: tempPassword,
+                transportationShareToken: token,
+                transportationLinkGeneratedAt: serverTimestamp(),
+                email: window.userEmail
+            });
+        }
 
-        // Update transportation with share token
-        await updateDoc(transportRef, {
-            shareToken: token,
-            shareLinkGeneratedAt: serverTimestamp()
-        });
-
-        // Generate the shareable link
+        // Generate the shareable link (shows all transportations)
         const baseUrl = window.location.origin + window.location.pathname;
-        const shareLink = `${baseUrl}?transport=${transportId}&token=${token}&type=${type}`;
+        shareLink = `${baseUrl}?transport=${window.userEmail}&token=${token}`;
 
-        // Show modal with shareable link
-        const typeName = type === 'flights' ? 'Flight' : type === 'speedboats' ? 'Speed Boat' : 'Taxi';
-        showTransportationLinkModal(typeName, transportNumber || 'N/A', shareLink);
+        // Show modal with shareable link and password
+        showTransportationLinkModal('All Transportation Types', 'All Flights, Speed Boats & Taxis', shareLink, tempPassword, false);
     } catch (error) {
         console.error('Error generating transportation link:', error);
+        console.error('Error details:', {
+            code: error.code,
+            message: error.message
+        });
+
+        let errorMessage = 'Failed to generate shareable link. Please try again.';
+        if (error.code === 'permission-denied') {
+            errorMessage = 'Permission denied. You may not have access to update this record.';
+        } else if (error.message) {
+            errorMessage = `Error: ${error.message}`;
+        }
+
         if (window.showErrorDialog) {
-            window.showErrorDialog('Failed to generate shareable link. Please try again.', 'Error');
+            window.showErrorDialog(errorMessage, 'Error');
         }
     }
 };
 
 // Show modal with transportation shareable link
-function showTransportationLinkModal(typeName, transportNumber, shareLink) {
+function showTransportationLinkModal(typeName, transportNumber, shareLink, tempPassword, isExisting = false) {
     const modalOverlay = document.getElementById('modal-overlay') || createModalOverlay();
     const modalBody = document.getElementById('modal-body');
     const modalTitle = document.getElementById('modal-title');
 
     if (!modalBody || !modalTitle) return;
 
-    modalTitle.textContent = `Shareable Link - ${typeName} ${transportNumber}`;
+    modalTitle.textContent = `Transportation Coordinator Link${isExisting ? ' (Existing)' : ''}`;
 
     modalBody.innerHTML = `
         <div style="margin-bottom: 20px;">
-            <p style="color: var(--text-light); margin-bottom: 12px;">Share this link with authorized personnel to allow them to view transportation details:</p>
-            <div style="display: flex; gap: 8px; align-items: center;">
+            <p style="color: var(--text-light); margin-bottom: 12px; font-weight: 600;">
+                ${isExisting ? 'Your existing coordinator link:' : 'Share this link with coordinators to allow them to view and manage ALL transportation types (Flights, Speed Boats, and Taxis):'}
+            </p>
+            <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 15px;">
                 <input type="text" id="share-link-input" value="${shareLink}" readonly style="flex: 1; padding: 10px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--light-color); font-family: monospace; font-size: 13px;">
                 <button class="btn-primary btn-compact" onclick="copyShareLink()" style="white-space: nowrap;">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 6px; display: inline-block;"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
                     Copy
                 </button>
             </div>
+            <div style="display: flex; gap: 8px; align-items: center;">
+                <input type="password" id="share-password-input" value="${tempPassword}" readonly style="flex: 1; padding: 10px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--light-color); font-family: monospace; font-size: 13px; letter-spacing: 2px;">
+                <button class="btn-primary btn-compact" onclick="copyTransportationPassword()" style="white-space: nowrap;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 6px; display: inline-block;"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                    Copy
+                </button>
+                <button id="toggle-password-visibility-transport" onclick="toggleTransportationPasswordVisibility()" style="padding: 10px 12px; background: transparent; color: var(--text-light); border: 1px solid var(--border-color); border-radius: 8px; cursor: pointer;">
+                    <svg id="eye-icon-transport" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                        <circle cx="12" cy="12" r="3"></circle>
+                    </svg>
+                    <svg id="eye-off-icon-transport" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: none;">
+                        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+                        <line x1="1" y1="1" x2="23" y2="23"></line>
+                    </svg>
+                </button>
+            </div>
             <p style="color: var(--text-light); font-size: 12px; margin-top: 8px;">
-                <strong>Note:</strong> Authorized personnel must be authenticated to access this link.
+                <strong>Note:</strong> Coordinators will need this temporary password to access all transportation types (Flights, Speed Boats, Taxis).
             </p>
         </div>
         <div class="modal-footer">
@@ -12677,6 +12896,37 @@ function showTransportationLinkModal(typeName, transportNumber, shareLink) {
 
     modalOverlay.style.display = 'flex';
 }
+
+// Copy transportation password
+window.copyTransportationPassword = function() {
+    const passwordInput = document.getElementById('share-password-input');
+    if (passwordInput) {
+        passwordInput.select();
+        document.execCommand('copy');
+        if (window.showSuccess) {
+            window.showSuccess('Password copied to clipboard!', 'Copied');
+        }
+    }
+};
+
+// Toggle transportation password visibility
+window.toggleTransportationPasswordVisibility = function() {
+    const passwordInput = document.getElementById('share-password-input');
+    const eyeIcon = document.getElementById('eye-icon-transport');
+    const eyeOffIcon = document.getElementById('eye-off-icon-transport');
+
+    if (passwordInput && eyeIcon && eyeOffIcon) {
+        if (passwordInput.type === 'password') {
+            passwordInput.type = 'text';
+            eyeIcon.style.display = 'none';
+            eyeOffIcon.style.display = 'inline-block';
+        } else {
+            passwordInput.type = 'password';
+            eyeIcon.style.display = 'inline-block';
+            eyeOffIcon.style.display = 'none';
+        }
+    }
+};
 
 // Create modal overlay if it doesn't exist
 function createModalOverlay() {
@@ -12704,6 +12954,654 @@ function createModalOverlay() {
         document.body.appendChild(overlay);
     }
     return overlay;
+}
+
+// Add voters to transportation
+window.addVotersToTransportation = async (transportId, type, transportIsland) => {
+    if (!window.db || !window.userEmail) {
+        if (window.showErrorDialog) {
+            window.showErrorDialog('Database not initialized. Please refresh the page.');
+        }
+        return;
+    }
+
+    if (!transportIsland || transportIsland.trim() === '') {
+        if (window.showErrorDialog) {
+            window.showErrorDialog('Transportation island is not set. Please set the island first.');
+        }
+        return;
+    }
+
+    try {
+        const {
+            doc,
+            getDoc,
+            collection,
+            query,
+            where,
+            getDocs
+        } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
+
+        // Get transportation data to check existing assigned voters
+        const transportRef = doc(window.db, 'transportation', transportId);
+        const transportSnap = await getDoc(transportRef);
+
+        if (!transportSnap.exists()) {
+            if (window.showErrorDialog) {
+                window.showErrorDialog('Transportation record not found.', 'Error');
+            }
+            return;
+        }
+
+        const transportData = transportSnap.data();
+        const existingAssignedVoters = transportData.assignedVoters || [];
+        const existingVoterIds = new Set(existingAssignedVoters.map(v => v.voterId || v.id));
+
+        // Fetch voters from the transportation's island
+        const votersQuery = query(
+            collection(window.db, 'voters'),
+            where('email', '==', window.userEmail),
+            where('island', '==', transportIsland)
+        );
+
+        let votersSnapshot;
+        try {
+            votersSnapshot = await getDocs(votersQuery);
+        } catch (queryError) {
+            // If query fails, try with campaignEmail
+            try {
+                const campaignVotersQuery = query(
+                    collection(window.db, 'voters'),
+                    where('campaignEmail', '==', window.userEmail),
+                    where('island', '==', transportIsland)
+                );
+                votersSnapshot = await getDocs(campaignVotersQuery);
+            } catch (campaignError) {
+                // Fallback: query all voters and filter by island in JavaScript
+                const allVotersQuery = query(
+                    collection(window.db, 'voters'),
+                    where('email', '==', window.userEmail)
+                );
+                const allSnapshot = await getDocs(allVotersQuery);
+                // Filter by island in JavaScript
+                votersSnapshot = {
+                    docs: allSnapshot.docs.filter(doc => {
+                        const data = doc.data();
+                        return data.island === transportIsland;
+                    })
+                };
+            }
+        }
+
+        const availableVoters = [];
+        votersSnapshot.docs.forEach(doc => {
+            const voterData = doc.data();
+            const voterId = doc.id;
+
+            // Skip if already assigned
+            if (existingVoterIds.has(voterId)) {
+                return;
+            }
+
+            availableVoters.push({
+                id: voterId,
+                voterId: voterId,
+                name: voterData.name || 'N/A',
+                idNumber: voterData.idNumber || voterData.voterId || 'N/A',
+                island: voterData.island || 'N/A',
+                permanentAddress: voterData.permanentAddress || voterData.address || 'N/A',
+                phone: voterData.number || voterData.phone || voterData.phoneNumber || 'N/A',
+                voterNumber: voterData.voterNumber || voterData.voterNo || null
+            });
+        });
+
+        if (availableVoters.length === 0) {
+            if (window.showErrorDialog) {
+                window.showErrorDialog(`No available voters found for island: ${transportIsland}. All voters may already be assigned.`, 'No Voters Available');
+            }
+            return;
+        }
+
+        // Show modal to select voters
+        showTransportationVoterSelectionModal(transportId, type, transportData, availableVoters, existingAssignedVoters);
+    } catch (error) {
+        console.error('Error loading voters for transportation:', error);
+        if (window.showErrorDialog) {
+            window.showErrorDialog('Failed to load voters. Please try again.', 'Error');
+        }
+    }
+};
+
+// View assigned voters for transportation
+window.viewTransportationVoters = async (transportId, type) => {
+    if (!window.db || !window.userEmail) {
+        if (window.showErrorDialog) {
+            window.showErrorDialog('Database not initialized. Please refresh the page.');
+        }
+        return;
+    }
+
+    try {
+        const {
+            doc,
+            getDoc
+        } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
+
+        // Get transportation data
+        const transportRef = doc(window.db, 'transportation', transportId);
+        const transportSnap = await getDoc(transportRef);
+
+        if (!transportSnap.exists()) {
+            if (window.showErrorDialog) {
+                window.showErrorDialog('Transportation record not found.', 'Error');
+            }
+            return;
+        }
+
+        const transportData = transportSnap.data();
+        const assignedVoters = transportData.assignedVoters || [];
+
+        if (assignedVoters.length === 0) {
+            if (window.showErrorDialog) {
+                window.showErrorDialog('No voters assigned to this transportation yet.', 'No Voters');
+            }
+            return;
+        }
+
+        // Show modal with assigned voters
+        showAssignedTransportationVotersModal(transportId, type, transportData, assignedVoters);
+    } catch (error) {
+        console.error('Error loading assigned voters:', error);
+        if (window.showErrorDialog) {
+            window.showErrorDialog('Failed to load assigned voters. Please try again.', 'Error');
+        }
+    }
+};
+
+// Show assigned voters modal
+function showAssignedTransportationVotersModal(transportId, type, transportData, assignedVoters) {
+    const modalOverlay = document.getElementById('modal-overlay') || createModalOverlay();
+    const modalBody = document.getElementById('modal-body');
+    const modalTitle = document.getElementById('modal-title');
+
+    if (!modalBody || !modalTitle) return;
+
+    const typeName = type === 'flights' ? 'Flight' : type === 'speedboats' ? 'Speed Boat' : 'Taxi';
+    const transportNumber = transportData.flightNumber || transportData.boatName || transportData.taxiNumber || transportData.number || 'N/A';
+    const capacity = transportData.capacity || 0;
+
+    modalTitle.textContent = `Assigned Voters - ${typeName} ${transportNumber}`;
+
+    // Build HTML for assigned voters
+    const votersListHTML = assignedVoters.map((voter, index) => {
+        const onBoardStatus = voter.onBoard ?
+            '<span class="status-badge status-active" style="font-size: 11px;">On Board</span>' :
+            '<span class="status-badge status-pending" style="font-size: 11px;">Not On Board</span>';
+
+        return `
+            <tr style="border-bottom: 1px solid var(--border-light);">
+                <td style="padding: 12px; font-size: 13px; color: var(--text-color); text-align: center; font-weight: 600;">${voter.voterNumber || (index + 1)}</td>
+                <td style="padding: 12px; font-size: 13px; color: var(--text-color);">${voter.idNumber || 'N/A'}</td>
+                <td style="padding: 12px; font-size: 13px; color: var(--text-color); font-weight: 600;">${voter.name || 'N/A'}</td>
+                <td style="padding: 12px; font-size: 13px; color: var(--text-color);">${voter.island || 'N/A'}</td>
+                <td style="padding: 12px; font-size: 13px; color: var(--text-color); font-family: monospace;">${voter.phone || 'N/A'}</td>
+                <td style="padding: 12px; font-size: 13px; color: var(--text-color); text-align: center;">${onBoardStatus}</td>
+            </tr>
+        `;
+    }).join('');
+
+    modalBody.innerHTML = `
+        <div style="margin-bottom: 20px;">
+            <p style="color: var(--text-light); margin-bottom: 8px;">
+                <strong>Capacity:</strong> ${assignedVoters.length} / ${capacity} assigned
+            </p>
+            <p style="color: var(--text-light); font-size: 12px; margin: 0;">
+                Voters assigned to <strong>${typeName} ${transportNumber}</strong> from <strong>${transportData.island || 'N/A'}</strong>.
+            </p>
+        </div>
+        <div class="table-container" style="max-height: 500px; overflow-y: auto; margin-bottom: 20px;">
+            <table class="data-table" style="width: 100%; border-collapse: collapse;">
+                <thead>
+                    <tr style="background: var(--light-color); border-bottom: 2px solid var(--border-color);">
+                        <th style="padding: 12px; text-align: center; font-size: 12px; font-weight: 600;">No.</th>
+                        <th style="padding: 12px; text-align: left; font-size: 12px; font-weight: 600;">ID Number</th>
+                        <th style="padding: 12px; text-align: left; font-size: 12px; font-weight: 600;">Name</th>
+                        <th style="padding: 12px; text-align: left; font-size: 12px; font-weight: 600;">Island</th>
+                        <th style="padding: 12px; text-align: left; font-size: 12px; font-weight: 600;">Phone</th>
+                        <th style="padding: 12px; text-align: center; font-size: 12px; font-weight: 600;">Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${votersListHTML || '<tr><td colspan="6" style="text-align: center; padding: 40px; color: var(--text-light);">No voters assigned</td></tr>'}
+                </tbody>
+            </table>
+        </div>
+        <div class="modal-footer">
+            <button class="btn-primary btn-compact" onclick="closeModal()">Close</button>
+        </div>
+    `;
+
+    modalOverlay.style.display = 'flex';
+}
+
+// Show modal to select voters for transportation
+function showTransportationVoterSelectionModal(transportId, type, transportData, availableVoters, existingAssignedVoters) {
+    const modalOverlay = document.getElementById('modal-overlay') || createModalOverlay();
+    const modalBody = document.getElementById('modal-body');
+    const modalTitle = document.getElementById('modal-title');
+
+    if (!modalBody || !modalTitle) return;
+
+    const typeName = type === 'flights' ? 'Flight' : type === 'speedboats' ? 'Speed Boat' : 'Taxi';
+    const transportNumber = transportData.flightNumber || transportData.boatName || transportData.taxiNumber || transportData.number || 'N/A';
+    const capacity = transportData.capacity || 0;
+    const currentAssigned = existingAssignedVoters.length;
+    const remainingCapacity = capacity - currentAssigned;
+
+    modalTitle.textContent = `Add Voters - ${typeName} ${transportNumber}`;
+
+    // Store available voters globally for filtering
+    window.transportationAvailableVoters = availableVoters;
+    window.transportationModalData = {
+        transportId,
+        type,
+        capacity,
+        currentAssigned
+    };
+
+    // Build HTML for available voters (multi-select)
+    const votersListHTML = availableVoters.map((voter, index) => `
+        <tr style="border-bottom: 1px solid var(--border-light); cursor: pointer;" 
+            data-voter-id="${voter.id}"
+            data-selected="false"
+            onclick="toggleVoterSelection(this, '${voter.id}')"
+            onmouseover="if (this.dataset.selected === 'false') this.style.backgroundColor='var(--light-color)'" 
+            onmouseout="if (this.dataset.selected === 'false') this.style.backgroundColor='white'">
+            <td style="padding: 12px; text-align: center;">
+                <input type="checkbox" class="voter-checkbox" value="${voter.id}" data-voter-id="${voter.id}" 
+                    onclick="event.stopPropagation(); toggleVoterSelection(this.closest('tr'), '${voter.id}')"
+                    style="width: 18px; height: 18px; cursor: pointer;">
+            </td>
+            <td style="padding: 12px; font-size: 13px; color: var(--text-color); text-align: center; font-weight: 600;">${voter.voterNumber || (index + 1)}</td>
+            <td style="padding: 12px; font-size: 13px; color: var(--text-color);">${voter.idNumber}</td>
+            <td style="padding: 12px; font-size: 13px; color: var(--text-color); font-weight: 600;">${voter.name}</td>
+            <td style="padding: 12px; font-size: 13px; color: var(--text-color);">${voter.island}</td>
+            <td style="padding: 12px; font-size: 13px; color: var(--text-color); font-family: monospace;">${voter.phone}</td>
+        </tr>
+    `).join('');
+
+    modalBody.innerHTML = `
+        <div style="margin-bottom: 20px;">
+            <p style="color: var(--text-light); margin-bottom: 8px;">
+                <strong>Capacity:</strong> ${currentAssigned} / ${capacity} assigned
+                ${remainingCapacity > 0 ? `<span style="color: var(--success-color);">(${remainingCapacity} remaining)</span>` : '<span style="color: var(--danger-color);">(Full)</span>'}
+            </p>
+            <p style="color: var(--text-light); font-size: 12px; margin: 0; margin-bottom: 15px;">
+                Select voters from <strong>${transportData.island || 'N/A'}</strong> to assign to this transportation.
+            </p>
+            <div style="margin-bottom: 15px;">
+                <input type="text" 
+                    id="transportation-voter-search" 
+                    placeholder="Search by name, ID number, or phone..." 
+                    style="width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 14px; background: var(--light-color);"
+                    onkeyup="filterTransportationVoters(this.value)">
+                <div style="margin-top: 8px; font-size: 12px; color: var(--text-light);">
+                    <span id="transportation-voter-count">${availableVoters.length}</span> voter(s) available
+                </div>
+            </div>
+        </div>
+        <div class="table-container" style="max-height: 400px; overflow-y: auto; margin-bottom: 20px;">
+            <table class="data-table" style="width: 100%; border-collapse: collapse;">
+                <thead>
+                    <tr style="background: var(--light-color); border-bottom: 2px solid var(--border-color);">
+                        <th style="padding: 12px; text-align: center; width: 50px;">Select</th>
+                        <th style="padding: 12px; text-align: left; font-size: 12px; font-weight: 600;">No.</th>
+                        <th style="padding: 12px; text-align: left; font-size: 12px; font-weight: 600;">ID Number</th>
+                        <th style="padding: 12px; text-align: left; font-size: 12px; font-weight: 600;">Name</th>
+                        <th style="padding: 12px; text-align: left; font-size: 12px; font-weight: 600;">Island</th>
+                        <th style="padding: 12px; text-align: left; font-size: 12px; font-weight: 600;">Phone</th>
+                    </tr>
+                </thead>
+                <tbody id="transportation-voters-table-body">
+                    ${votersListHTML || '<tr><td colspan="6" style="text-align: center; padding: 40px; color: var(--text-light);">No available voters found</td></tr>'}
+                </tbody>
+            </table>
+        </div>
+        <div id="transportation-voter-error" class="error-message" style="display: none; margin-bottom: 15px;"></div>
+        <div class="modal-footer">
+            <button class="btn-secondary btn-compact" onclick="closeModal()">Cancel</button>
+            <button class="btn-primary btn-compact" onclick="saveTransportationVoters('${transportId}', '${type}', ${capacity}, ${currentAssigned})">Add Selected Voters</button>
+        </div>
+    `;
+
+    modalOverlay.style.display = 'flex';
+
+    // Focus on search box
+    setTimeout(() => {
+        const searchInput = document.getElementById('transportation-voter-search');
+        if (searchInput) {
+            searchInput.focus();
+        }
+    }, 100);
+}
+
+// Filter transportation voters by search term
+window.filterTransportationVoters = function(searchTerm) {
+    const tbody = document.getElementById('transportation-voters-table-body');
+    const countEl = document.getElementById('transportation-voter-count');
+
+    if (!tbody || !window.transportationAvailableVoters) return;
+
+    const term = (searchTerm || '').toLowerCase().trim();
+
+    // Filter voters
+    let filteredVoters = window.transportationAvailableVoters;
+    if (term) {
+        filteredVoters = window.transportationAvailableVoters.filter(voter => {
+            const name = (voter.name || '').toLowerCase();
+            const idNumber = (voter.idNumber || '').toLowerCase();
+            const phone = (voter.phone || '').toLowerCase();
+            const voterNumber = (voter.voterNumber || '').toLowerCase();
+
+            return name.includes(term) ||
+                idNumber.includes(term) ||
+                phone.includes(term) ||
+                voterNumber.includes(term);
+        });
+    }
+
+    // Update count
+    if (countEl) {
+        countEl.textContent = filteredVoters.length;
+    }
+
+    // Rebuild table rows
+    if (filteredVoters.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 40px; color: var(--text-light);">No voters found matching your search</td></tr>';
+        return;
+    }
+
+    // Preserve selected checkboxes
+    const selectedVoterIds = new Set();
+    document.querySelectorAll('.voter-checkbox:checked').forEach(checkbox => {
+        selectedVoterIds.add(checkbox.value);
+    });
+
+    const votersListHTML = filteredVoters.map((voter, index) => {
+        const isSelected = selectedVoterIds.has(voter.id);
+        const baseStyle = isSelected ? 'background-color: var(--primary-50);' : '';
+        return `
+            <tr style="border-bottom: 1px solid var(--border-light); cursor: pointer; ${baseStyle}" 
+                data-voter-id="${voter.id}"
+                data-selected="${isSelected}"
+                onclick="toggleVoterSelection(this, '${voter.id}')"
+                onmouseover="if (!this.dataset.selected || this.dataset.selected === 'false') this.style.backgroundColor='var(--light-color)'" 
+                onmouseout="if (!this.dataset.selected || this.dataset.selected === 'false') this.style.backgroundColor='white'; else this.style.backgroundColor='var(--primary-50)'">
+                <td style="padding: 12px; text-align: center;">
+                    <input type="checkbox" class="voter-checkbox" value="${voter.id}" data-voter-id="${voter.id}" 
+                        ${isSelected ? 'checked' : ''}
+                        onclick="event.stopPropagation(); toggleVoterSelection(this.closest('tr'), '${voter.id}')"
+                        style="width: 18px; height: 18px; cursor: pointer;">
+                </td>
+                <td style="padding: 12px; font-size: 13px; color: var(--text-color); text-align: center; font-weight: 600;">${voter.voterNumber || (index + 1)}</td>
+                <td style="padding: 12px; font-size: 13px; color: var(--text-color);">${voter.idNumber}</td>
+                <td style="padding: 12px; font-size: 13px; color: var(--text-color); font-weight: 600;">${voter.name}</td>
+                <td style="padding: 12px; font-size: 13px; color: var(--text-color);">${voter.island}</td>
+                <td style="padding: 12px; font-size: 13px; color: var(--text-color); font-family: monospace;">${voter.phone}</td>
+            </tr>
+        `;
+    }).join('');
+
+    tbody.innerHTML = votersListHTML;
+};
+
+// Toggle voter selection
+window.toggleVoterSelection = function(row, voterId) {
+    const checkbox = row.querySelector('.voter-checkbox');
+    if (checkbox) {
+        checkbox.checked = !checkbox.checked;
+        if (checkbox.checked) {
+            row.style.backgroundColor = 'var(--primary-50)';
+            row.dataset.selected = 'true';
+        } else {
+            row.style.backgroundColor = 'white';
+            row.dataset.selected = 'false';
+        }
+    }
+};
+
+// Save selected voters to transportation
+window.saveTransportationVoters = async (transportId, type, capacity, currentAssigned) => {
+    if (!window.db || !window.userEmail) {
+        if (window.showErrorDialog) {
+            window.showErrorDialog('Database not initialized. Please refresh the page.');
+        }
+        return;
+    }
+
+    try {
+        const {
+            doc,
+            getDoc,
+            updateDoc,
+            arrayUnion
+        } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
+
+        // Get selected voters
+        const checkboxes = document.querySelectorAll('.voter-checkbox:checked');
+        if (checkboxes.length === 0) {
+            const errorEl = document.getElementById('transportation-voter-error');
+            if (errorEl) {
+                errorEl.textContent = 'Please select at least one voter.';
+                errorEl.style.display = 'block';
+            }
+            return;
+        }
+
+        // Check capacity
+        const selectedCount = checkboxes.length;
+        if (currentAssigned + selectedCount > capacity) {
+            const errorEl = document.getElementById('transportation-voter-error');
+            if (errorEl) {
+                errorEl.textContent = `Cannot assign ${selectedCount} voters. Only ${capacity - currentAssigned} spots remaining.`;
+                errorEl.style.display = 'block';
+            }
+            return;
+        }
+
+        // Get transportation data
+        const transportRef = doc(window.db, 'transportation', transportId);
+        const transportSnap = await getDoc(transportRef);
+
+        if (!transportSnap.exists()) {
+            if (window.showErrorDialog) {
+                window.showErrorDialog('Transportation record not found.', 'Error');
+            }
+            return;
+        }
+
+        const transportData = transportSnap.data();
+        const existingAssignedVoters = transportData.assignedVoters || [];
+        const existingVoterIds = new Set(existingAssignedVoters.map(v => v.voterId || v.id));
+
+        // Get voter data for selected voters
+        const selectedVoters = [];
+        for (const checkbox of checkboxes) {
+            const voterId = checkbox.value;
+
+            // Skip if already assigned
+            if (existingVoterIds.has(voterId)) {
+                continue;
+            }
+
+            // Get voter document
+            const voterRef = doc(window.db, 'voters', voterId);
+            const voterSnap = await getDoc(voterRef);
+
+            if (voterSnap.exists()) {
+                const voterData = voterSnap.data();
+                selectedVoters.push({
+                    voterId: voterId,
+                    id: voterId,
+                    name: voterData.name || 'N/A',
+                    idNumber: voterData.idNumber || voterData.voterId || 'N/A',
+                    island: voterData.island || 'N/A',
+                    phone: voterData.number || voterData.phone || voterData.phoneNumber || 'N/A',
+                    voterNumber: voterData.voterNumber || null,
+                    onBoard: false,
+                    onBoardAt: null
+                });
+            }
+        }
+
+        if (selectedVoters.length === 0) {
+            if (window.showErrorDialog) {
+                window.showErrorDialog('No new voters to add. They may already be assigned.', 'Info');
+            }
+            return;
+        }
+
+        // Update transportation with new voters
+        await updateDoc(transportRef, {
+            assignedVoters: arrayUnion(...selectedVoters)
+        });
+
+        if (window.showSuccess) {
+            window.showSuccess(`Successfully added ${selectedVoters.length} voter(s) to transportation.`, 'Success');
+        }
+
+        // Close modal
+        closeModal();
+
+        // Reload transportation data
+        if (window.loadTransportationData) {
+            setTimeout(() => {
+                window.loadTransportationData(true);
+            }, 500);
+        }
+    } catch (error) {
+        console.error('Error saving transportation voters:', error);
+        if (window.showErrorDialog) {
+            window.showErrorDialog('Failed to add voters. Please try again.', 'Error');
+        }
+    }
+};
+
+// View assigned voters for transportation
+window.viewTransportationVoters = async (transportId, type) => {
+    if (!window.db || !window.userEmail) {
+        if (window.showErrorDialog) {
+            window.showErrorDialog('Database not initialized. Please refresh the page.');
+        }
+        return;
+    }
+
+    try {
+        const {
+            doc,
+            getDoc
+        } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
+
+        // Get transportation data
+        const transportRef = doc(window.db, 'transportation', transportId);
+        const transportSnap = await getDoc(transportRef);
+
+        if (!transportSnap.exists()) {
+            if (window.showErrorDialog) {
+                window.showErrorDialog('Transportation record not found.', 'Error');
+            }
+            return;
+        }
+
+        const transportData = transportSnap.data();
+        const assignedVoters = transportData.assignedVoters || [];
+
+        if (assignedVoters.length === 0) {
+            if (window.showErrorDialog) {
+                window.showErrorDialog('No voters assigned to this transportation yet.', 'No Voters');
+            }
+            return;
+        }
+
+        // Show modal with assigned voters
+        const typeName = type === 'flights' ? 'Flight' : type === 'speedboats' ? 'Speed Boat' : 'Taxi';
+        const transportNumber = transportData.flightNumber || transportData.boatName || transportData.taxiNumber || transportData.number || 'N/A';
+
+        showTransportationAssignedVotersModal(typeName, transportNumber, assignedVoters, transportData);
+    } catch (error) {
+        console.error('Error loading transportation voters:', error);
+        if (window.showErrorDialog) {
+            window.showErrorDialog('Failed to load assigned voters. Please try again.', 'Error');
+        }
+    }
+};
+
+// Show modal with assigned voters
+function showTransportationAssignedVotersModal(typeName, transportNumber, assignedVoters, transportData) {
+    const modalOverlay = document.getElementById('modal-overlay') || createModalOverlay();
+    const modalBody = document.getElementById('modal-body');
+    const modalTitle = document.getElementById('modal-title');
+
+    if (!modalBody || !modalTitle) return;
+
+    modalTitle.textContent = `Assigned Voters - ${typeName} ${transportNumber}`;
+
+    const votersList = assignedVoters.map((voter, index) => {
+        const isOnBoard = voter.onBoard === true || (voter.onBoardAt !== undefined && voter.onBoardAt !== null);
+        return `
+            <tr>
+                <td style="text-align: center; font-weight: 600; color: var(--text-light);">${voter.voterNumber || index + 1}</td>
+                <td>${voter.idNumber || 'N/A'}</td>
+                <td>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <strong>${voter.name || 'N/A'}</strong>
+                        ${isOnBoard ? '<span class="status-badge status-success" style="font-size: 10px; padding: 2px 6px; border-radius: 10px; background: var(--success-color); color: white; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">On Board</span>' : ''}
+                    </div>
+                </td>
+                <td>${voter.island || 'N/A'}</td>
+                <td style="font-family: monospace;">${voter.phone || 'N/A'}</td>
+                <td>
+                    ${isOnBoard ? 
+                        '<span class="status-badge status-success">On Board</span>' : 
+                        '<span class="status-badge status-pending">Not On Board</span>'
+                    }
+                </td>
+            </tr>
+        `;
+    }).join('');
+
+    const onBoardCount = assignedVoters.filter(v => v.onBoard === true || (v.onBoardAt !== undefined && v.onBoardAt !== null)).length;
+
+    modalBody.innerHTML = `
+        <div style="margin-bottom: 20px;">
+            <p><strong>Island:</strong> ${transportData.island || 'N/A'}</p>
+            <p><strong>Total Assigned:</strong> ${assignedVoters.length}</p>
+            <p><strong>On Board:</strong> <span style="color: var(--success-color); font-weight: 600;">${onBoardCount}</span> / ${assignedVoters.length}</p>
+            <p><strong>Status:</strong> <span class="status-badge ${transportData.status === 'confirmed' ? 'status-active' : 'status-pending'}">${transportData.status || 'Pending'}</span></p>
+        </div>
+        <div class="table-container" style="max-height: 400px; overflow-y: auto;">
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>No.</th>
+                        <th>ID Number</th>
+                        <th>Name</th>
+                        <th>Island</th>
+                        <th>Phone</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${votersList}
+                </tbody>
+            </table>
+        </div>
+        <div class="modal-footer" style="margin-top: 20px; display: flex; gap: 10px; justify-content: flex-end;">
+            <button class="btn-secondary btn-compact" onclick="closeModal()">Close</button>
+        </div>
+    `;
+
+    modalOverlay.style.display = 'flex';
 }
 
 // Edit transportation
@@ -22406,3 +23304,1216 @@ window.setupSettingsTabs = setupSettingsTabs;
 window.checkAndShowManageUsersTab = checkAndShowManageUsersTab;
 window.populateCampaignInformation = populateCampaignInformation;
 window.populateAccountSettings = populateAccountSettings;
+
+// Handle transportation coordinator view (no authentication required - only temporary password)
+window.handleTransportationCoordinatorView = async (campaignEmail, token) => {
+    console.log('[handleTransportationCoordinatorView] Starting with:', {
+        campaignEmail,
+        token
+    });
+
+    // Show loading screen immediately
+    document.querySelectorAll('.screen').forEach(screen => {
+        screen.classList.remove('active');
+    });
+    const loadingScreen = document.getElementById('officer-loading-screen');
+    if (loadingScreen) {
+        loadingScreen.classList.add('active');
+    } else {
+        console.warn('[handleTransportationCoordinatorView] Loading screen not found');
+    }
+
+    try {
+        // Initialize database without requiring authentication
+        // Try to get app from window, or initialize if needed
+        let firebaseApp = window.app;
+
+        if (!firebaseApp) {
+            // Try to get existing app instance
+            try {
+                const {
+                    getApp
+                } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js');
+                firebaseApp = getApp();
+                window.app = firebaseApp;
+            } catch (getAppError) {
+                // If getApp fails, initialize new app
+                try {
+                    const {
+                        initializeApp
+                    } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js');
+                    const firebaseConfig = {
+                        apiKey: "AIzaSyBd2G37d-hkM_AkFaEtHofE8ISNOvnNXiY",
+                        authDomain: "version6-7c39b.firebaseapp.com",
+                        projectId: "version6-7c39b",
+                        storageBucket: "version6-7c39b.firebasestorage.app",
+                        messagingSenderId: "284487082378",
+                        appId: "1:284487082378:web:bdf11ca6c99f3758a6a873",
+                        measurementId: "G-H1VWHNF8Z7"
+                    };
+                    firebaseApp = initializeApp(firebaseConfig);
+                    window.app = firebaseApp;
+                } catch (initError) {
+                    const errorMsg = 'Firebase not initialized. Please refresh the page.';
+                    console.error('[handleTransportationCoordinatorView] Firebase initialization failed:', initError);
+                    if (window.showOfficerError) {
+                        window.showOfficerError(errorMsg);
+                    } else if (typeof showOfficerError === 'function') {
+                        showOfficerError(errorMsg);
+                    } else {
+                        alert(errorMsg);
+                    }
+                    return;
+                }
+            }
+        }
+
+        // Initialize auth for anonymous authentication (required for Firestore queries)
+        const {
+            getAuth,
+            signInAnonymously
+        } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js');
+        const auth = getAuth(firebaseApp);
+
+        // Try to sign in anonymously to allow Firestore queries (optional)
+        // If anonymous auth is disabled, we'll continue without auth
+        // Firestore rules allow unauthenticated reads for transportation coordinator links
+        try {
+            if (!auth.currentUser) {
+                console.log('[handleTransportationCoordinatorView] Attempting anonymous sign-in...');
+                await signInAnonymously(auth);
+                console.log('[handleTransportationCoordinatorView] Anonymous authentication successful');
+            } else {
+                console.log('[handleTransportationCoordinatorView] Already authenticated');
+            }
+        } catch (authError) {
+            console.log('[handleTransportationCoordinatorView] Anonymous authentication not available (may be disabled in Firebase Console), continuing without auth');
+            console.log('[handleTransportationCoordinatorView] Firestore rules allow unauthenticated reads for transportation coordinator links');
+            // Continue without auth - Firestore rules allow unauthenticated access for coordinator links
+        }
+
+        // Initialize db if not already initialized
+        if (!window.db) {
+            const {
+                getFirestore
+            } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
+            window.db = getFirestore(firebaseApp);
+        }
+
+        const database = window.db;
+        if (!database) {
+            console.error('[handleTransportationCoordinatorView] Database not initialized');
+            const errorMsg = 'Database not initialized. Please refresh the page and try again.';
+            if (window.showOfficerError) {
+                window.showOfficerError(errorMsg);
+            } else if (typeof showOfficerError === 'function') {
+                showOfficerError(errorMsg);
+            } else {
+                alert(errorMsg);
+            }
+            return;
+        }
+
+        // Import Firebase functions
+        const {
+            doc,
+            getDoc
+        } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
+
+        // Verify campaign and token
+        const campaignRef = doc(database, 'clients', campaignEmail);
+        const campaignSnap = await getDoc(campaignRef);
+
+        if (!campaignSnap.exists()) {
+            const errorMsg = 'Invalid transportation link. The campaign may have been deleted.';
+            if (window.showOfficerError) {
+                window.showOfficerError(errorMsg);
+            } else if (typeof showOfficerError === 'function') {
+                showOfficerError(errorMsg);
+            } else {
+                alert(errorMsg);
+            }
+            return;
+        }
+
+        const campaignData = campaignSnap.data();
+
+        // Verify token matches
+        if (campaignData.transportationShareToken !== token) {
+            const errorMsg = 'Invalid access token. This link may have expired or been revoked.';
+            if (window.showOfficerError) {
+                window.showOfficerError(errorMsg);
+            } else if (typeof showOfficerError === 'function') {
+                showOfficerError(errorMsg);
+            } else {
+                alert(errorMsg);
+            }
+            return;
+        }
+
+        // Store transportation info for password verification
+        window.transportCoordinatorInfo = {
+            campaignEmail: campaignEmail,
+            campaignData: campaignData,
+            token: token,
+            password: campaignData.transportationCoordinatorPassword
+        };
+
+        // Wait for DOM to be ready if needed
+        if (document.readyState === 'loading') {
+            await new Promise(resolve => {
+                document.addEventListener('DOMContentLoaded', resolve);
+            });
+        }
+
+        // Hide loading screen and show password entry screen
+        document.querySelectorAll('.screen').forEach(screen => {
+            screen.classList.remove('active');
+        });
+        const passwordScreen = document.getElementById('officer-password-screen');
+        if (!passwordScreen) {
+            console.error('[handleTransportationCoordinatorView] Password screen element not found');
+            const errorMsg = 'Page elements not loaded. Please refresh the page and try again.';
+            if (window.showOfficerError) {
+                window.showOfficerError(errorMsg);
+            } else if (typeof showOfficerError === 'function') {
+                showOfficerError(errorMsg);
+            } else {
+                alert(errorMsg);
+            }
+            return;
+        }
+
+        passwordScreen.classList.add('active');
+        setupTransportationCoordinatorPasswordForm(campaignEmail, campaignData);
+
+    } catch (error) {
+        console.error('Error handling transportation coordinator view:', error);
+        const errorMsg = `Failed to load transportation view: ${error.message || 'Unknown error'}. Please check the link and try again.`;
+        if (window.showOfficerError) {
+            window.showOfficerError(errorMsg);
+        } else if (typeof showOfficerError === 'function') {
+            showOfficerError(errorMsg);
+        } else {
+            alert(errorMsg);
+        }
+    }
+};
+
+// Setup transportation coordinator password form
+function setupTransportationCoordinatorPasswordForm(campaignEmail, campaignData) {
+    const passwordForm = document.getElementById('officer-password-form');
+    const passwordInput = document.getElementById('officer-password-input');
+    const passwordError = document.getElementById('officer-password-error');
+
+    if (!passwordForm || !passwordInput) {
+        console.error('Password form elements not found');
+        return;
+    }
+
+    // Clear previous error
+    if (passwordError) {
+        passwordError.textContent = '';
+        passwordError.style.display = 'none';
+    }
+
+    // Update form title
+    const formTitle = document.querySelector('#officer-password-screen h1');
+    const formSubtitle = document.querySelector('#officer-password-screen p');
+    if (formTitle) {
+        formTitle.textContent = 'Transportation Coordinator Access';
+    }
+    if (formSubtitle) {
+        formSubtitle.textContent = 'Enter the temporary password to view all transportation types';
+    }
+
+    // Handle form submission
+    passwordForm.onsubmit = async (e) => {
+        e.preventDefault();
+        const enteredPassword = passwordInput.value.trim();
+
+        // Check if password is required
+        const correctPassword = campaignData.transportationCoordinatorPassword;
+        if (correctPassword) {
+            if (enteredPassword !== correctPassword) {
+                if (passwordError) {
+                    passwordError.textContent = 'Incorrect password. Please try again.';
+                    passwordError.style.display = 'block';
+                }
+                passwordInput.focus();
+                return;
+            }
+        } else {
+            // No password set - allow access (for backward compatibility)
+            console.warn('[setupTransportationCoordinatorPasswordForm] No password configured - allowing access');
+        }
+
+        // Password correct - load transportation coordinator view
+        if (window.loadTransportationCoordinatorView) {
+            await window.loadTransportationCoordinatorView(campaignEmail);
+        } else {
+            console.error('loadTransportationCoordinatorView function not found');
+            if (window.showOfficerError) {
+                window.showOfficerError('Transportation coordinator view not available. Please refresh the page.');
+            }
+        }
+    };
+
+    // Focus on password input
+    passwordInput.focus();
+}
+
+// Load transportation coordinator view - shows ALL transportation types
+window.loadTransportationCoordinatorView = async (campaignEmail) => {
+    try {
+        const {
+            collection,
+            query,
+            where,
+            getDocs,
+            doc,
+            getDoc,
+            updateDoc,
+            serverTimestamp
+        } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
+
+        const database = window.db;
+        if (!database) {
+            console.error('[loadTransportationCoordinatorView] Database not initialized');
+            return;
+        }
+
+        // Normalize email to lowercase for consistent matching
+        const normalizedEmail = campaignEmail ? campaignEmail.trim().toLowerCase() : '';
+        console.log(`[loadTransportationCoordinatorView] Loading transportation for campaign: ${normalizedEmail}`);
+        console.log(`[loadTransportationCoordinatorView] Original campaignEmail from URL: ${campaignEmail}`);
+
+        if (!normalizedEmail) {
+            console.error('[loadTransportationCoordinatorView] No campaign email provided!');
+            if (window.showOfficerError) {
+                window.showOfficerError('No campaign email provided. Please check the link.');
+            }
+            return;
+        }
+
+        // Load all transportation types
+        const transportTypes = ['flights', 'speedboats', 'taxis'];
+        const allTransportations = {
+            flights: [],
+            speedboats: [],
+            taxis: []
+        };
+
+        for (const type of transportTypes) {
+            try {
+                console.log(`[loadTransportationCoordinatorView] Loading ${type} for campaign: ${normalizedEmail}`);
+
+                // Try multiple query strategies
+                let snapshot;
+                let queryMethod = 'none';
+
+                // Strategy 1: Try querying by email field
+                try {
+                    const transportQuery = query(
+                        collection(database, 'transportation'),
+                        where('email', '==', normalizedEmail),
+                        where('type', '==', type)
+                    );
+                    snapshot = await getDocs(transportQuery);
+                    queryMethod = 'email+type';
+                    console.log(`[loadTransportationCoordinatorView] Query method: email+type, found ${snapshot.docs.length} records`);
+                } catch (queryError1) {
+                    console.warn(`[loadTransportationCoordinatorView] Query by email+type failed:`, queryError1);
+
+                    // Strategy 2: Try querying by campaignEmail field
+                    try {
+                        const transportQuery2 = query(
+                            collection(database, 'transportation'),
+                            where('campaignEmail', '==', normalizedEmail),
+                            where('type', '==', type)
+                        );
+                        snapshot = await getDocs(transportQuery2);
+                        queryMethod = 'campaignEmail+type';
+                        console.log(`[loadTransportationCoordinatorView] Query method: campaignEmail+type, found ${snapshot.docs.length} records`);
+                    } catch (queryError2) {
+                        console.warn(`[loadTransportationCoordinatorView] Query by campaignEmail+type failed:`, queryError2);
+
+                        // Strategy 3: Load all records for this campaign and filter in memory
+                        try {
+                            // Try email first
+                            const fallbackQuery1 = query(
+                                collection(database, 'transportation'),
+                                where('email', '==', normalizedEmail)
+                            );
+                            const fallbackSnapshot1 = await getDocs(fallbackQuery1);
+
+                            // Filter by type in memory
+                            const filteredDocs1 = fallbackSnapshot1.docs.filter(doc => {
+                                const data = doc.data();
+                                const dataEmail = (data.email || '').trim().toLowerCase();
+                                return dataEmail === normalizedEmail && data.type === type;
+                            });
+
+                            snapshot = {
+                                docs: filteredDocs1
+                            };
+                            queryMethod = 'email-filtered';
+                            console.log(`[loadTransportationCoordinatorView] Query method: email-filtered, found ${filteredDocs1.length} records`);
+                        } catch (queryError3) {
+                            console.warn(`[loadTransportationCoordinatorView] Fallback query by email failed:`, queryError3);
+
+                            // Try campaignEmail
+                            try {
+                                const fallbackQuery2 = query(
+                                    collection(database, 'transportation'),
+                                    where('campaignEmail', '==', normalizedEmail)
+                                );
+                                const fallbackSnapshot2 = await getDocs(fallbackQuery2);
+
+                                const filteredDocs2 = fallbackSnapshot2.docs.filter(doc => {
+                                    const data = doc.data();
+                                    const dataEmail = (data.campaignEmail || data.email || '').trim().toLowerCase();
+                                    return dataEmail === normalizedEmail && data.type === type;
+                                });
+
+                                snapshot = {
+                                    docs: filteredDocs2
+                                };
+                                queryMethod = 'campaignEmail-filtered';
+                                console.log(`[loadTransportationCoordinatorView] Query method: campaignEmail-filtered, found ${filteredDocs2.length} records`);
+                            } catch (queryError4) {
+                                console.warn(`[loadTransportationCoordinatorView] Fallback query by campaignEmail failed:`, queryError4);
+
+                                // Strategy 4: Last resort - try to load all transportation records and filter in memory
+                                // This might fail due to permissions, but worth trying
+                                try {
+                                    const allTransportQuery = query(collection(database, 'transportation'));
+                                    const allTransportSnapshot = await getDocs(allTransportQuery);
+
+                                    const filteredDocs3 = allTransportSnapshot.docs.filter(doc => {
+                                        const data = doc.data();
+                                        const dataEmail = (data.email || '').trim().toLowerCase();
+                                        const dataCampaignEmail = (data.campaignEmail || '').trim().toLowerCase();
+                                        const matchesEmail = dataEmail === normalizedEmail || dataCampaignEmail === normalizedEmail;
+                                        return matchesEmail && data.type === type;
+                                    });
+
+                                    snapshot = {
+                                        docs: filteredDocs3
+                                    };
+                                    queryMethod = 'all-filtered';
+                                    console.log(`[loadTransportationCoordinatorView] Query method: all-filtered, found ${filteredDocs3.length} records`);
+                                } catch (queryError5) {
+                                    console.error(`[loadTransportationCoordinatorView] All query methods failed for ${type}:`, queryError5);
+                                    snapshot = {
+                                        docs: []
+                                    };
+                                }
+                            }
+                        }
+                    }
+                }
+
+                console.log(`[loadTransportationCoordinatorView] Found ${snapshot.docs.length} ${type} records using method: ${queryMethod}`);
+
+                snapshot.docs.forEach(doc => {
+                    const data = doc.data();
+                    // Check both email and campaignEmail fields, normalize for comparison
+                    const dataEmail = (data.email || '').trim().toLowerCase();
+                    const dataCampaignEmail = (data.campaignEmail || '').trim().toLowerCase();
+                    const matchesEmail = dataEmail === normalizedEmail || dataCampaignEmail === normalizedEmail;
+
+                    if (matchesEmail && data.type === type) {
+                        allTransportations[type].push({
+                            id: doc.id,
+                            ...data
+                        });
+                    } else {
+                        console.warn(`[loadTransportationCoordinatorView] Skipping ${type} record ${doc.id} - email mismatch. Record email: ${dataEmail || dataCampaignEmail}, campaignEmail: ${dataCampaignEmail}, type: ${data.type}. Expected: ${normalizedEmail}, ${type}`);
+                    }
+                });
+            } catch (error) {
+                console.error(`[loadTransportationCoordinatorView] Error loading ${type}:`, error);
+                // Continue loading other types even if one fails
+            }
+        }
+
+        console.log(`[loadTransportationCoordinatorView] Total loaded - Flights: ${allTransportations.flights.length}, Speed Boats: ${allTransportations.speedboats.length}, Taxis: ${allTransportations.taxis.length}`);
+
+        // Diagnostic: Check what records exist in the database
+        try {
+            const diagnosticQuery = query(collection(database, 'transportation'));
+            const diagnosticSnapshot = await getDocs(diagnosticQuery);
+            console.log(`[loadTransportationCoordinatorView] DIAGNOSTIC: Total transportation records in database: ${diagnosticSnapshot.docs.length}`);
+
+            if (diagnosticSnapshot.docs.length > 0) {
+                const sampleDocs = diagnosticSnapshot.docs.slice(0, 5);
+                console.log(`[loadTransportationCoordinatorView] DIAGNOSTIC: Sample records:`, sampleDocs.map(doc => {
+                    const data = doc.data();
+                    return {
+                        id: doc.id,
+                        email: data.email,
+                        campaignEmail: data.campaignEmail,
+                        type: data.type,
+                        normalizedEmail: normalizedEmail,
+                        emailMatch: (data.email || '').trim().toLowerCase() === normalizedEmail,
+                        campaignEmailMatch: (data.campaignEmail || '').trim().toLowerCase() === normalizedEmail
+                    };
+                }));
+
+                // Get all unique emails in the database
+                const allEmails = new Set();
+                diagnosticSnapshot.docs.forEach(doc => {
+                    const data = doc.data();
+                    if (data.email) allEmails.add(data.email.toLowerCase());
+                    if (data.campaignEmail) allEmails.add(data.campaignEmail.toLowerCase());
+                });
+                console.log(`[loadTransportationCoordinatorView] DIAGNOSTIC: All unique emails in database:`, Array.from(allEmails));
+                console.log(`[loadTransportationCoordinatorView] DIAGNOSTIC: Looking for email: ${normalizedEmail}`);
+                console.log(`[loadTransportationCoordinatorView] DIAGNOSTIC: Email found in database: ${allEmails.has(normalizedEmail)}`);
+            }
+        } catch (diagError) {
+            console.warn(`[loadTransportationCoordinatorView] Diagnostic query failed:`, diagError);
+        }
+
+        // Hide password screen and show coordinator view
+        document.querySelectorAll('.screen').forEach(screen => {
+            screen.classList.remove('active');
+        });
+
+        // Create or get coordinator view screen
+        let coordinatorScreen = document.getElementById('transportation-coordinator-screen');
+        if (!coordinatorScreen) {
+            coordinatorScreen = document.createElement('div');
+            coordinatorScreen.id = 'transportation-coordinator-screen';
+            coordinatorScreen.className = 'screen';
+            document.body.appendChild(coordinatorScreen);
+        }
+
+        coordinatorScreen.classList.add('active');
+
+        // Render the coordinator view with tabs for each transportation type
+        renderTransportationCoordinatorView(allTransportations, campaignEmail);
+
+    } catch (error) {
+        console.error('Error loading transportation coordinator view:', error);
+        if (window.showOfficerError) {
+            window.showOfficerError(`Failed to load transportation view: ${error.message || 'Unknown error'}. Please refresh the page.`);
+        }
+    }
+};
+
+// Render transportation coordinator view with tabs
+function renderTransportationCoordinatorView(allTransportations, campaignEmail) {
+    const coordinatorScreen = document.getElementById('transportation-coordinator-screen');
+    if (!coordinatorScreen) return;
+
+    const totalFlights = allTransportations.flights.length;
+    const totalSpeedboats = allTransportations.speedboats.length;
+    const totalTaxis = allTransportations.taxis.length;
+
+    coordinatorScreen.innerHTML = `
+        <div style="max-width: 1400px; margin: 0 auto; padding: 20px;">
+            <div style="background: white; border-radius: 12px; padding: 30px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+                <div style="margin-bottom: 30px; border-bottom: 2px solid var(--border-color); padding-bottom: 20px;">
+                    <h1 style="margin: 0 0 10px 0; color: var(--primary-color); font-size: 28px;">
+                        Transportation Coordinator View
+                    </h1>
+                    <p style="margin: 5px 0; color: var(--text-light); font-size: 14px;">
+                        Manage all transportation types and mark voters as on-board
+                    </p>
+                </div>
+
+                <!-- Transportation Type Tabs -->
+                <div style="display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 2px solid var(--border-color);">
+                    <button class="transport-coord-tab-btn active" data-transport-tab="flights" onclick="switchTransportCoordinatorTab('flights')" 
+                        style="padding: 12px 24px; background: none; border: none; border-bottom: 3px solid var(--primary-color); color: var(--primary-color); font-weight: 600; cursor: pointer; font-size: 14px;">
+                        Flights (${totalFlights})
+                    </button>
+                    <button class="transport-coord-tab-btn" data-transport-tab="speedboats" onclick="switchTransportCoordinatorTab('speedboats')" 
+                        style="padding: 12px 24px; background: none; border: none; border-bottom: 3px solid transparent; color: var(--text-light); font-weight: 500; cursor: pointer; font-size: 14px;">
+                        Speed Boats (${totalSpeedboats})
+                    </button>
+                    <button class="transport-coord-tab-btn" data-transport-tab="taxis" onclick="switchTransportCoordinatorTab('taxis')" 
+                        style="padding: 12px 24px; background: none; border: none; border-bottom: 3px solid transparent; color: var(--text-light); font-weight: 500; cursor: pointer; font-size: 14px;">
+                        Taxis (${totalTaxis})
+                    </button>
+                </div>
+
+                <!-- Transportation Content -->
+                <div id="transport-coordinator-content">
+                    ${renderTransportationTypeTab('flights', allTransportations.flights, campaignEmail)}
+                    ${renderTransportationTypeTab('speedboats', allTransportations.speedboats, campaignEmail)}
+                    ${renderTransportationTypeTab('taxis', allTransportations.taxis, campaignEmail)}
+                </div>
+            </div>
+        </div>
+    `;
+
+    // Store data globally for filtering and updates
+    window.transportCoordinatorData = allTransportations;
+    window.transportCoordinatorCampaignEmail = campaignEmail;
+}
+
+// Render transportation type tab content
+function renderTransportationTypeTab(type, transportations, campaignEmail) {
+    const typeName = type === 'flights' ? 'Flights' : type === 'speedboats' ? 'Speed Boats' : 'Taxis';
+    const displayStyle = type === 'flights' ? 'block' : 'none';
+
+    if (transportations.length === 0) {
+        return `
+            <div class="transport-coord-panel" data-panel="${type}" style="display: ${displayStyle};">
+                <div style="text-align: center; padding: 60px; color: var(--text-light);">
+                    <p>No ${typeName.toLowerCase()} available</p>
+                </div>
+            </div>
+        `;
+    }
+
+    const transportationsHTML = transportations.map(transport => {
+        const transportNumber = transport.flightNumber || transport.boatName || transport.taxiNumber || transport.number || 'N/A';
+        const island = transport.island || 'N/A';
+        const route = transport.route || transport.area || 'N/A';
+        const departureTime = transport.departureTime || 'N/A';
+        const arrivalTime = transport.arrivalTime || 'N/A';
+        const assignedVoters = transport.assignedVoters || [];
+        const onBoardCount = assignedVoters.filter(v => v.onBoard === true || (v.onBoardAt !== undefined && v.onBoardAt !== null)).length;
+        const capacity = transport.capacity || 0;
+
+        const votersTableRows = assignedVoters.map((voter, index) => {
+            const isOnBoard = voter.onBoard === true || (voter.onBoardAt !== undefined && voter.onBoardAt !== null);
+            const onBoardClass = isOnBoard ? 'status-success' : 'status-pending';
+            const onBoardText = isOnBoard ? 'On Board' : 'Not On Board';
+            const rowBgColor = isOnBoard ? 'var(--success-50)' : 'white';
+
+            return `
+                <tr data-transport-id="${transport.id}" data-voter-id="${voter.voterId || voter.id}" 
+                    data-onboard="${isOnBoard}"
+                    style="cursor: pointer; background-color: ${rowBgColor}; transition: background-color 0.2s;" 
+                    onclick="markVoterOnBoardTransportCoord('${transport.id}', '${voter.voterId || voter.id}', ${!isOnBoard}, '${type}')"
+                    onmouseover="this.style.backgroundColor='var(--primary-50)'" 
+                    onmouseout="this.style.backgroundColor='${rowBgColor}'">
+                    <td style="text-align: center; font-weight: 600;">${voter.voterNumber || index + 1}</td>
+                    <td>${voter.idNumber || 'N/A'}</td>
+                    <td><strong>${voter.name || 'N/A'}</strong></td>
+                    <td>${voter.island || 'N/A'}</td>
+                    <td style="font-family: monospace;">${voter.phone || 'N/A'}</td>
+                    <td style="text-align: center;">
+                        <button class="btn-compact" 
+                            onclick="event.stopPropagation(); markVoterOnBoardTransportCoord('${transport.id}', '${voter.voterId || voter.id}', ${!isOnBoard}, '${type}')"
+                            style="padding: 6px 12px; font-size: 12px; border-radius: 6px; border: none; cursor: pointer; ${isOnBoard ? 'background: var(--success-color); color: white;' : 'background: var(--warning-color); color: white;'}">
+                            ${isOnBoard ? '✓ On Board' : 'Mark On Board'}
+                        </button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+
+        return `
+            <div style="margin-bottom: 30px; border: 1px solid var(--border-color); border-radius: 8px; padding: 20px; background: var(--light-color);">
+                <div style="margin-bottom: 15px; border-bottom: 1px solid var(--border-color); padding-bottom: 15px;">
+                    <h3 style="margin: 0 0 10px 0; color: var(--primary-color); font-size: 18px;">
+                        ${typeName === 'Flights' ? '✈️' : typeName === 'Speed Boats' ? '⛵' : '🚕'} ${transportNumber}
+                    </h3>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; font-size: 13px; color: var(--text-light);">
+                        <div><strong>Island:</strong> ${island}</div>
+                        <div><strong>Route:</strong> ${route}</div>
+                        <div><strong>Departure:</strong> ${departureTime}</div>
+                        <div><strong>Arrival:</strong> ${arrivalTime}</div>
+                        <div><strong>Capacity:</strong> ${capacity} / ${assignedVoters.length}</div>
+                        <div><strong>On Board:</strong> <span style="color: var(--success-color); font-weight: 600;">${onBoardCount}</span> / ${assignedVoters.length}</div>
+                    </div>
+                </div>
+                ${assignedVoters.length > 0 ? `
+                    <div style="margin-bottom: 10px;">
+                        <input type="text" class="transport-voter-search" data-transport-id="${transport.id}" 
+                            placeholder="Search voters..." 
+                            style="width: 100%; padding: 10px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 13px;"
+                            onkeyup="filterTransportCoordinatorVoters('${transport.id}', this.value)">
+                    </div>
+                    <div class="table-container" style="max-height: 300px; overflow-y: auto;">
+                        <table class="data-table" style="font-size: 13px;">
+                            <thead>
+                                <tr>
+                                    <th>No.</th>
+                                    <th>ID Number</th>
+                                    <th>Name</th>
+                                    <th>Island</th>
+                                    <th>Phone</th>
+                                    <th style="text-align: center;">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="transport-voters-${transport.id}">
+                                ${votersTableRows}
+                            </tbody>
+                        </table>
+                    </div>
+                ` : `
+                    <div style="text-align: center; padding: 20px; color: var(--text-light);">
+                        No voters assigned
+                    </div>
+                `}
+            </div>
+        `;
+    }).join('');
+
+    return `
+        <div class="transport-coord-panel" data-panel="${type}" style="display: ${displayStyle};">
+            ${transportationsHTML}
+        </div>
+    `;
+}
+
+// Switch transportation coordinator tab
+window.switchTransportCoordinatorTab = function(type) {
+    // Update tab buttons
+    document.querySelectorAll('.transport-coord-tab-btn').forEach(btn => {
+        if (btn.dataset.transportTab === type) {
+            btn.classList.add('active');
+            btn.style.borderBottomColor = 'var(--primary-color)';
+            btn.style.color = 'var(--primary-color)';
+            btn.style.fontWeight = '600';
+        } else {
+            btn.classList.remove('active');
+            btn.style.borderBottomColor = 'transparent';
+            btn.style.color = 'var(--text-light)';
+            btn.style.fontWeight = '500';
+        }
+    });
+
+    // Update panels
+    document.querySelectorAll('.transport-coord-panel').forEach(panel => {
+        if (panel.dataset.panel === type) {
+            panel.style.display = 'block';
+        } else {
+            panel.style.display = 'none';
+        }
+    });
+};
+
+// Filter transportation coordinator voters
+window.filterTransportCoordinatorVoters = function(transportId, searchTerm) {
+    const tableBody = document.getElementById(`transport-voters-${transportId}`);
+    if (!tableBody || !window.transportCoordinatorData) return;
+
+    const term = searchTerm.toLowerCase().trim();
+
+    // Find the transportation
+    let transport = null;
+    for (const type of ['flights', 'speedboats', 'taxis']) {
+        transport = window.transportCoordinatorData[type].find(t => t.id === transportId);
+        if (transport) break;
+    }
+
+    if (!transport) return;
+
+    const assignedVoters = transport.assignedVoters || [];
+
+    if (!term) {
+        // Show all voters
+        renderTransportCoordinatorVotersTable(transportId, assignedVoters, '');
+        return;
+    }
+
+    // Filter voters
+    const filtered = assignedVoters.filter(voter => {
+        const idNumber = (voter.idNumber || '').toLowerCase();
+        const name = (voter.name || '').toLowerCase();
+        return idNumber.includes(term) || name.includes(term);
+    });
+
+    renderTransportCoordinatorVotersTable(transportId, filtered, term);
+};
+
+// Render transportation coordinator voters table
+function renderTransportCoordinatorVotersTable(transportId, voters, searchTerm = '') {
+    const tableBody = document.getElementById(`transport-voters-${transportId}`);
+    if (!tableBody) return;
+
+    // Find transport type
+    let transport = null;
+    let transportType = null;
+    for (const type of ['flights', 'speedboats', 'taxis']) {
+        transport = window.transportCoordinatorData[type].find(t => t.id === transportId);
+        if (transport) {
+            transportType = type;
+            break;
+        }
+    }
+
+    if (!transport) return;
+
+    const rows = voters.map((voter, index) => {
+        const isOnBoard = voter.onBoard === true || (voter.onBoardAt !== undefined && voter.onBoardAt !== null);
+        const onBoardClass = isOnBoard ? 'status-success' : 'status-pending';
+        const onBoardText = isOnBoard ? 'On Board' : 'Not On Board';
+        const rowBgColor = isOnBoard ? 'var(--success-50)' : 'white';
+
+        // Highlight search term
+        let nameDisplay = voter.name || 'N/A';
+        let idNumberDisplay = voter.idNumber || 'N/A';
+        if (searchTerm) {
+            const term = searchTerm.toLowerCase();
+            const nameLower = nameDisplay.toLowerCase();
+            const idLower = idNumberDisplay.toLowerCase();
+            if (nameLower.includes(term)) {
+                const start = nameLower.indexOf(term);
+                const end = start + term.length;
+                nameDisplay = nameDisplay.substring(0, start) +
+                    '<mark style="background: yellow; padding: 2px 4px; border-radius: 3px;">' +
+                    nameDisplay.substring(start, end) + '</mark>' +
+                    nameDisplay.substring(end);
+            }
+            if (idLower.includes(term)) {
+                const start = idLower.indexOf(term);
+                const end = start + term.length;
+                idNumberDisplay = idNumberDisplay.substring(0, start) +
+                    '<mark style="background: yellow; padding: 2px 4px; border-radius: 3px;">' +
+                    idNumberDisplay.substring(start, end) + '</mark>' +
+                    idNumberDisplay.substring(end);
+            }
+        }
+
+        return `
+            <tr data-transport-id="${transportId}" data-voter-id="${voter.voterId || voter.id}" 
+                data-onboard="${isOnBoard}"
+                style="cursor: pointer; background-color: ${rowBgColor}; transition: background-color 0.2s;" 
+                onclick="markVoterOnBoardTransportCoord('${transportId}', '${voter.voterId || voter.id}', ${!isOnBoard}, '${transportType}')"
+                onmouseover="this.style.backgroundColor='var(--primary-50)'" 
+                onmouseout="this.style.backgroundColor='${rowBgColor}'">
+                <td style="text-align: center; font-weight: 600;">${voter.voterNumber || index + 1}</td>
+                <td>${idNumberDisplay}</td>
+                <td><strong>${nameDisplay}</strong></td>
+                <td>${voter.island || 'N/A'}</td>
+                <td style="font-family: monospace;">${voter.phone || 'N/A'}</td>
+                <td style="text-align: center;">
+                    <button class="btn-compact" 
+                        onclick="event.stopPropagation(); markVoterOnBoardTransportCoord('${transportId}', '${voter.voterId || voter.id}', ${!isOnBoard}, '${transportType}')"
+                        style="padding: 6px 12px; font-size: 12px; border-radius: 6px; border: none; cursor: pointer; ${isOnBoard ? 'background: var(--success-color); color: white;' : 'background: var(--warning-color); color: white;'}">
+                        ${isOnBoard ? '✓ On Board' : 'Mark On Board'}
+                    </button>
+                </td>
+            </tr>
+        `;
+    }).join('');
+
+    tableBody.innerHTML = rows || '<tr><td colspan="6" style="text-align: center; padding: 40px; color: var(--text-light);">No voters found</td></tr>';
+}
+
+// Mark voter as on-board (coordinator view)
+window.markVoterOnBoardTransportCoord = async (transportId, voterId, markAsOnBoard, transportType) => {
+    if (!window.db) {
+        console.error('Database not initialized');
+        return;
+    }
+
+    try {
+        const {
+            doc,
+            getDoc,
+            updateDoc
+        } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
+
+        // Get transportation document
+        const transportRef = doc(window.db, 'transportation', transportId);
+        const transportSnap = await getDoc(transportRef);
+
+        if (!transportSnap.exists()) {
+            console.error('Transportation not found');
+            return;
+        }
+
+        const transportData = transportSnap.data();
+        const assignedVoters = transportData.assignedVoters || [];
+
+        // Find and update the voter
+        let voterFound = false;
+        const updatedVoters = assignedVoters.map(voter => {
+            if ((voter.voterId || voter.id) === voterId) {
+                voterFound = true;
+                const updatedVoter = {
+                    ...voter,
+                    onBoard: markAsOnBoard
+                };
+                // Only set onBoardAt if marking as on-board
+                // Note: serverTimestamp() cannot be used inside arrays, so we use a regular timestamp
+                if (markAsOnBoard) {
+                    updatedVoter.onBoardAt = new Date().toISOString();
+                } else {
+                    updatedVoter.onBoardAt = null;
+                }
+                return updatedVoter;
+            }
+            return voter;
+        });
+
+        if (!voterFound) {
+            console.error('[markVoterOnBoardTransportCoord] Voter not found in assigned voters:', voterId);
+            if (window.showOfficerError) {
+                window.showOfficerError('Voter not found in assigned voters list.');
+            }
+            return;
+        }
+
+        console.log('[markVoterOnBoardTransportCoord] Updating transportation document with', updatedVoters.length, 'voters');
+
+        // Update transportation document - only update assignedVoters field
+        await updateDoc(transportRef, {
+            assignedVoters: updatedVoters
+        });
+
+        console.log('[markVoterOnBoardTransportCoord] Update successful');
+
+        // Update local data
+        const transport = window.transportCoordinatorData[transportType].find(t => t.id === transportId);
+        if (transport) {
+            transport.assignedVoters = updatedVoters;
+        }
+
+        // Re-render table
+        const searchInput = document.querySelector(`input[data-transport-id="${transportId}"]`);
+        const searchTerm = searchInput ? searchInput.value : '';
+        renderTransportCoordinatorVotersTable(transportId, updatedVoters, searchTerm);
+
+        // Update the on-board count in the header
+        const onBoardCount = updatedVoters.filter(v => v.onBoard === true || (v.onBoardAt !== undefined && v.onBoardAt !== null)).length;
+
+        // Find and update the on-board count display in the header
+        // Look for the div containing the transportation info
+        const transportDivs = document.querySelectorAll('div[style*="margin-bottom: 30px"][style*="border: 1px solid"]');
+        for (const transportDiv of transportDivs) {
+            // Check if this div contains the transport with our transportId
+            const votersTable = transportDiv.querySelector(`tbody#transport-voters-${transportId}`);
+            if (votersTable) {
+                // Find the div with grid layout that contains "On Board:"
+                const gridDiv = transportDiv.querySelector('div[style*="grid-template-columns"]');
+                if (gridDiv) {
+                    // Find all divs and look for the one containing "On Board:"
+                    const allDivs = Array.from(gridDiv.querySelectorAll('div'));
+                    const onBoardDiv = allDivs.find(div => {
+                        const strong = div.querySelector('strong');
+                        return strong && strong.textContent && strong.textContent.includes('On Board:');
+                    });
+
+                    if (onBoardDiv) {
+                        // Find the span with success color inside this div
+                        const onBoardSpan = onBoardDiv.querySelector('span[style*="color: var(--success-color)"]');
+                        if (onBoardSpan) {
+                            onBoardSpan.textContent = onBoardCount;
+                        }
+                    }
+                }
+                break;
+            }
+        }
+
+        // Show success message
+        if (markAsOnBoard) {
+            console.log('Voter marked as on-board');
+        } else {
+            console.log('Voter marked as not on-board');
+        }
+
+    } catch (error) {
+        console.error('[markVoterOnBoardTransportCoord] Error marking voter on-board:', error);
+        console.error('[markVoterOnBoardTransportCoord] Error details:', {
+            code: error.code,
+            message: error.message,
+            transportId: transportId,
+            voterId: voterId,
+            markAsOnBoard: markAsOnBoard
+        });
+
+        let errorMessage = 'Failed to update voter status. Please try again.';
+        if (error.code === 'permission-denied') {
+            errorMessage = 'Permission denied. You may not have access to update this record. Please check the link and try again.';
+        } else if (error.code === 'unavailable') {
+            errorMessage = 'Service temporarily unavailable. Please check your internet connection and try again.';
+        } else if (error.message) {
+            errorMessage = `Error: ${error.message}`;
+        }
+
+        if (window.showOfficerError) {
+            window.showOfficerError(errorMessage);
+        } else {
+            alert(errorMessage);
+        }
+    }
+};
+
+// Switch transportation coordinator tab
+window.switchTransportCoordinatorTab = function(type) {
+    // Update tab buttons
+    document.querySelectorAll('.transport-coord-tab-btn').forEach(btn => {
+        if (btn.dataset.transportTab === type) {
+            btn.classList.add('active');
+            btn.style.borderBottomColor = 'var(--primary-color)';
+            btn.style.color = 'var(--primary-color)';
+            btn.style.fontWeight = '600';
+        } else {
+            btn.classList.remove('active');
+            btn.style.borderBottomColor = 'transparent';
+            btn.style.color = 'var(--text-light)';
+            btn.style.fontWeight = '500';
+        }
+    });
+
+    // Update panels
+    document.querySelectorAll('.transport-coord-panel').forEach(panel => {
+        if (panel.dataset.panel === type) {
+            panel.style.display = 'block';
+        } else {
+            panel.style.display = 'none';
+        }
+    });
+};
+
+// Filter transportation coordinator voters
+window.filterTransportCoordinatorVoters = function(transportId, searchTerm) {
+    const tableBody = document.getElementById(`transport-voters-${transportId}`);
+    if (!tableBody || !window.transportCoordinatorData) return;
+
+    const term = searchTerm.toLowerCase().trim();
+
+    // Find the transportation
+    let transport = null;
+    for (const type of ['flights', 'speedboats', 'taxis']) {
+        transport = window.transportCoordinatorData[type].find(t => t.id === transportId);
+        if (transport) break;
+    }
+
+    if (!transport) return;
+
+    const assignedVoters = transport.assignedVoters || [];
+
+    if (!term) {
+        // Show all voters
+        renderTransportCoordinatorVotersTable(transportId, assignedVoters, '');
+        return;
+    }
+
+    // Filter voters
+    const filtered = assignedVoters.filter(voter => {
+        const idNumber = (voter.idNumber || '').toLowerCase();
+        const name = (voter.name || '').toLowerCase();
+        return idNumber.includes(term) || name.includes(term);
+    });
+
+    renderTransportCoordinatorVotersTable(transportId, filtered, term);
+};
+
+// Render transportation coordinator voters table
+function renderTransportCoordinatorVotersTable(transportId, voters, searchTerm = '') {
+    const tableBody = document.getElementById(`transport-voters-${transportId}`);
+    if (!tableBody) return;
+
+    // Find transport type
+    let transport = null;
+    let transportType = null;
+    for (const type of ['flights', 'speedboats', 'taxis']) {
+        transport = window.transportCoordinatorData[type].find(t => t.id === transportId);
+        if (transport) {
+            transportType = type;
+            break;
+        }
+    }
+
+    if (!transport) return;
+
+    const rows = voters.map((voter, index) => {
+        const isOnBoard = voter.onBoard === true || (voter.onBoardAt !== undefined && voter.onBoardAt !== null);
+        const onBoardClass = isOnBoard ? 'status-success' : 'status-pending';
+        const onBoardText = isOnBoard ? 'On Board' : 'Not On Board';
+        const rowBgColor = isOnBoard ? 'var(--success-50)' : 'white';
+
+        // Highlight search term
+        let nameDisplay = voter.name || 'N/A';
+        let idNumberDisplay = voter.idNumber || 'N/A';
+        if (searchTerm) {
+            const term = searchTerm.toLowerCase();
+            const nameLower = nameDisplay.toLowerCase();
+            const idLower = idNumberDisplay.toLowerCase();
+            if (nameLower.includes(term)) {
+                const start = nameLower.indexOf(term);
+                const end = start + term.length;
+                nameDisplay = nameDisplay.substring(0, start) +
+                    '<mark style="background: yellow; padding: 2px 4px; border-radius: 3px;">' +
+                    nameDisplay.substring(start, end) + '</mark>' +
+                    nameDisplay.substring(end);
+            }
+            if (idLower.includes(term)) {
+                const start = idLower.indexOf(term);
+                const end = start + term.length;
+                idNumberDisplay = idNumberDisplay.substring(0, start) +
+                    '<mark style="background: yellow; padding: 2px 4px; border-radius: 3px;">' +
+                    idNumberDisplay.substring(start, end) + '</mark>' +
+                    idNumberDisplay.substring(end);
+            }
+        }
+
+        return `
+            <tr data-transport-id="${transportId}" data-voter-id="${voter.voterId || voter.id}" 
+                data-onboard="${isOnBoard}"
+                style="cursor: pointer; background-color: ${rowBgColor}; transition: background-color 0.2s;" 
+                onclick="markVoterOnBoardTransportCoord('${transportId}', '${voter.voterId || voter.id}', ${!isOnBoard}, '${transportType}')"
+                onmouseover="this.style.backgroundColor='var(--primary-50)'" 
+                onmouseout="this.style.backgroundColor='${rowBgColor}'">
+                <td style="text-align: center; font-weight: 600;">${voter.voterNumber || index + 1}</td>
+                <td>${idNumberDisplay}</td>
+                <td><strong>${nameDisplay}</strong></td>
+                <td>${voter.island || 'N/A'}</td>
+                <td style="font-family: monospace;">${voter.phone || 'N/A'}</td>
+                <td style="text-align: center;">
+                    <button class="btn-compact" 
+                        onclick="event.stopPropagation(); markVoterOnBoardTransportCoord('${transportId}', '${voter.voterId || voter.id}', ${!isOnBoard}, '${transportType}')"
+                        style="padding: 6px 12px; font-size: 12px; border-radius: 6px; border: none; cursor: pointer; ${isOnBoard ? 'background: var(--success-color); color: white;' : 'background: var(--warning-color); color: white;'}">
+                        ${isOnBoard ? '✓ On Board' : 'Mark On Board'}
+                    </button>
+                </td>
+            </tr>
+        `;
+    }).join('');
+
+    tableBody.innerHTML = rows || '<tr><td colspan="6" style="text-align: center; padding: 40px; color: var(--text-light);">No voters found</td></tr>';
+}
+
+// Mark voter as on-board (coordinator view)
+window.markVoterOnBoardTransportCoord = async (transportId, voterId, markAsOnBoard, transportType) => {
+    if (!window.db) {
+        console.error('Database not initialized');
+        return;
+    }
+
+    try {
+        const {
+            doc,
+            getDoc,
+            updateDoc
+        } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
+
+        // Get transportation document
+        const transportRef = doc(window.db, 'transportation', transportId);
+        const transportSnap = await getDoc(transportRef);
+
+        if (!transportSnap.exists()) {
+            console.error('Transportation not found');
+            return;
+        }
+
+        const transportData = transportSnap.data();
+        const assignedVoters = transportData.assignedVoters || [];
+
+        // Find and update the voter
+        let voterFound = false;
+        const updatedVoters = assignedVoters.map(voter => {
+            if ((voter.voterId || voter.id) === voterId) {
+                voterFound = true;
+                const updatedVoter = {
+                    ...voter,
+                    onBoard: markAsOnBoard
+                };
+                // Only set onBoardAt if marking as on-board
+                // Note: serverTimestamp() cannot be used inside arrays, so we use a regular timestamp
+                if (markAsOnBoard) {
+                    updatedVoter.onBoardAt = new Date().toISOString();
+                } else {
+                    updatedVoter.onBoardAt = null;
+                }
+                return updatedVoter;
+            }
+            return voter;
+        });
+
+        if (!voterFound) {
+            console.error('[markVoterOnBoardTransportCoord] Voter not found in assigned voters:', voterId);
+            if (window.showOfficerError) {
+                window.showOfficerError('Voter not found in assigned voters list.');
+            }
+            return;
+        }
+
+        console.log('[markVoterOnBoardTransportCoord] Updating transportation document with', updatedVoters.length, 'voters');
+
+        // Update transportation document - only update assignedVoters field
+        await updateDoc(transportRef, {
+            assignedVoters: updatedVoters
+        });
+
+        console.log('[markVoterOnBoardTransportCoord] Update successful');
+
+        // Update local data
+        const transport = window.transportCoordinatorData[transportType].find(t => t.id === transportId);
+        if (transport) {
+            transport.assignedVoters = updatedVoters;
+        }
+
+        // Re-render table
+        const searchInput = document.querySelector(`input[data-transport-id="${transportId}"]`);
+        const searchTerm = searchInput ? searchInput.value : '';
+        renderTransportCoordinatorVotersTable(transportId, updatedVoters, searchTerm);
+
+        // Update the on-board count in the header
+        const onBoardCount = updatedVoters.filter(v => v.onBoard === true || (v.onBoardAt !== undefined && v.onBoardAt !== null)).length;
+
+        // Find and update the on-board count display in the header
+        // Look for the div containing the transportation info
+        const transportDivs = document.querySelectorAll('div[style*="margin-bottom: 30px"][style*="border: 1px solid"]');
+        for (const transportDiv of transportDivs) {
+            // Check if this div contains the transport with our transportId
+            const votersTable = transportDiv.querySelector(`tbody#transport-voters-${transportId}`);
+            if (votersTable) {
+                // Find the div with grid layout that contains "On Board:"
+                const gridDiv = transportDiv.querySelector('div[style*="grid-template-columns"]');
+                if (gridDiv) {
+                    // Find all divs and look for the one containing "On Board:"
+                    const allDivs = Array.from(gridDiv.querySelectorAll('div'));
+                    const onBoardDiv = allDivs.find(div => {
+                        const strong = div.querySelector('strong');
+                        return strong && strong.textContent && strong.textContent.includes('On Board:');
+                    });
+
+                    if (onBoardDiv) {
+                        // Find the span with success color inside this div
+                        const onBoardSpan = onBoardDiv.querySelector('span[style*="color: var(--success-color)"]');
+                        if (onBoardSpan) {
+                            onBoardSpan.textContent = onBoardCount;
+                        }
+                    }
+                }
+                break;
+            }
+        }
+
+        // Show success message
+        if (markAsOnBoard) {
+            console.log('Voter marked as on-board');
+        } else {
+            console.log('Voter marked as not on-board');
+        }
+
+    } catch (error) {
+        console.error('[markVoterOnBoardTransportCoord] Error marking voter on-board:', error);
+        console.error('[markVoterOnBoardTransportCoord] Error details:', {
+            code: error.code,
+            message: error.message,
+            transportId: transportId,
+            voterId: voterId,
+            markAsOnBoard: markAsOnBoard
+        });
+
+        let errorMessage = 'Failed to update voter status. Please try again.';
+        if (error.code === 'permission-denied') {
+            errorMessage = 'Permission denied. You may not have access to update this record. Please check the link and try again.';
+        } else if (error.code === 'unavailable') {
+            errorMessage = 'Service temporarily unavailable. Please check your internet connection and try again.';
+        } else if (error.message) {
+            errorMessage = `Error: ${error.message}`;
+        }
+
+        if (window.showOfficerError) {
+            window.showOfficerError(errorMessage);
+        } else {
+            alert(errorMessage);
+        }
+    }
+};
