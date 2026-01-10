@@ -89,7 +89,7 @@ const pageTemplates = {
                         </div>
                         <div class="setting-value">
                             <label class="toggle-switch">
-                                <input type="checkbox" checked>
+                                <input type="checkbox" id="email-notifications-toggle" checked>
                                 <span class="toggle-slider"></span>
                             </label>
                         </div>
@@ -101,7 +101,7 @@ const pageTemplates = {
                         </div>
                         <div class="setting-value">
                             <label class="toggle-switch">
-                                <input type="checkbox" checked>
+                                <input type="checkbox" id="push-notifications-toggle" checked>
                                 <span class="toggle-slider"></span>
                             </label>
                         </div>
@@ -1715,6 +1715,7 @@ function _loadPageContentInternal(section) {
                 } else if (section === 'analytics') {
                     loadAnalyticsData();
                 } else if (section === 'settings') {
+                    initializeSettingsPage();
                     populateSettingsData();
                 }
 
@@ -10111,51 +10112,72 @@ window.updateMobileBottomNavVisibility = updateMobileBottomNavVisibility;
 
 // Populate settings page with campaign data
 function populateSettingsData() {
-    // Initialize mobile bottom nav toggle state from localStorage
-    setTimeout(() => {
-        const mobileNavToggle = document.getElementById('mobile-bottom-nav-toggle');
-        if (mobileNavToggle) {
-            const savedSetting = localStorage.getItem('mobileBottomNavEnabled');
-            const isEnabled = savedSetting === 'true'; // Default to disabled (only enabled if explicitly set to 'true')
-            mobileNavToggle.checked = isEnabled;
+    // Call initializeSettingsToggles if it exists (from initializeSettingsPage)
+    if (typeof initializeSettingsToggles === 'function') {
+        initializeSettingsToggles();
+    } else {
+        // Fallback: Initialize toggles directly if function doesn't exist yet
+        // Initialize mobile bottom nav toggle state from localStorage
+        setTimeout(() => {
+            const mobileNavToggle = document.getElementById('mobile-bottom-nav-toggle');
+            if (mobileNavToggle) {
+                const savedSetting = localStorage.getItem('mobileBottomNavEnabled');
+                const isEnabled = savedSetting === 'true'; // Default to disabled (only enabled if explicitly set to 'true')
+                mobileNavToggle.checked = isEnabled;
 
-            // Update mobile bottom nav visibility when settings page loads
-            updateMobileBottomNavVisibility();
-
-            // Add event listener for mobile bottom nav toggle
-            mobileNavToggle.addEventListener('change', (e) => {
-                const enabled = e.target.checked;
-                localStorage.setItem('mobileBottomNavEnabled', enabled.toString());
-                updateMobileBottomNavVisibility();
-            });
-        }
-
-        // Initialize show voter images toggle state from Firestore
-        const showVoterImagesToggle = document.getElementById('show-voter-images-toggle');
-        if (showVoterImagesToggle) {
-            // Load setting from Firestore
-            loadShowVoterImagesSetting().then(enabled => {
-                window.showVoterImages = enabled !== false; // Default to true
-                showVoterImagesToggle.checked = window.showVoterImages;
-            }).catch(() => {
-                // Default to true if loading fails
-                window.showVoterImages = true;
-                showVoterImagesToggle.checked = true;
-            });
-
-            // Add event listener for show voter images toggle
-            showVoterImagesToggle.addEventListener('change', async (e) => {
-                const enabled = e.target.checked;
-                window.showVoterImages = enabled;
-                await saveShowVoterImagesSetting(enabled);
-                // Reload voters table if on voters page
-                if (currentSection === 'voters' && typeof loadVotersData === 'function') {
-                    loadVotersData();
+                // Update mobile bottom nav visibility when settings page loads
+                if (typeof updateMobileBottomNavVisibility === 'function') {
+                    updateMobileBottomNavVisibility();
                 }
-            });
-        }
 
-    }, 100);
+                // Remove existing listeners to avoid duplicates
+                const newToggle = mobileNavToggle.cloneNode(true);
+                mobileNavToggle.parentNode.replaceChild(newToggle, mobileNavToggle);
+
+                // Add event listener for mobile bottom nav toggle
+                newToggle.addEventListener('change', (e) => {
+                    const enabled = e.target.checked;
+                    localStorage.setItem('mobileBottomNavEnabled', enabled.toString());
+                    if (typeof updateMobileBottomNavVisibility === 'function') {
+                        updateMobileBottomNavVisibility();
+                    }
+                });
+            }
+
+            // Initialize show voter images toggle state from Firestore
+            const showVoterImagesToggle = document.getElementById('show-voter-images-toggle');
+            if (showVoterImagesToggle) {
+                // Load setting from Firestore
+                if (typeof loadShowVoterImagesSetting === 'function') {
+                    loadShowVoterImagesSetting().then(enabled => {
+                        window.showVoterImages = enabled !== false; // Default to true
+                        showVoterImagesToggle.checked = window.showVoterImages;
+                    }).catch(() => {
+                        // Default to true if loading fails
+                        window.showVoterImages = true;
+                        showVoterImagesToggle.checked = true;
+                    });
+                }
+
+                // Remove existing listeners to avoid duplicates
+                const newToggle = showVoterImagesToggle.cloneNode(true);
+                showVoterImagesToggle.parentNode.replaceChild(newToggle, showVoterImagesToggle);
+
+                // Add event listener for show voter images toggle
+                newToggle.addEventListener('change', async (e) => {
+                    const enabled = e.target.checked;
+                    window.showVoterImages = enabled;
+                    if (typeof saveShowVoterImagesSetting === 'function') {
+                        await saveShowVoterImagesSetting(enabled);
+                    }
+                    // Reload voters table if on voters page
+                    if (window.currentPage === 'voters' && typeof window.loadVotersData === 'function') {
+                        window.loadVotersData();
+                    }
+                });
+            }
+        }, 100);
+    }
     // Get campaign data from global window object (set by app.js)
     if (window.campaignData) {
         updateSettingsFields(window.campaignData);
@@ -10184,13 +10206,30 @@ function populateSettingsData() {
 
     // Setup Zero Day toggle event listener
     setTimeout(() => {
-
         const zeroDayToggle = document.getElementById('zero-day-toggle');
         if (zeroDayToggle) {
-            zeroDayToggle.addEventListener('change', async (e) => {
+            // Load saved state first
+            if (typeof loadZeroDayToggle === 'function') {
+                loadZeroDayToggle().then(enabled => {
+                    zeroDayToggle.checked = enabled;
+                }).catch(() => {
+                    zeroDayToggle.checked = false;
+                });
+            }
+
+            // Remove existing listeners to avoid duplicates
+            const newToggle = zeroDayToggle.cloneNode(true);
+            zeroDayToggle.parentNode.replaceChild(newToggle, zeroDayToggle);
+
+            // Add event listener
+            newToggle.addEventListener('change', async (e) => {
                 const enabled = e.target.checked;
-                await saveZeroDayToggle(enabled);
-                updateZeroDayMenuVisibility(enabled);
+                if (typeof saveZeroDayToggle === 'function') {
+                    await saveZeroDayToggle(enabled);
+                }
+                if (typeof updateZeroDayMenuVisibility === 'function') {
+                    updateZeroDayMenuVisibility(enabled);
+                }
             });
         }
     }, 300);
@@ -23165,12 +23204,146 @@ function initializeSettingsPage() {
     // Populate Account Settings
     populateAccountSettings();
 
+    // Initialize all toggle switches
+    initializeSettingsToggles();
+
     // Load island users if on Manage Users tab
     const usersTab = document.querySelector('[data-settings-tab="users"]');
     if (usersTab && usersTab.classList.contains('active')) {
         if (window.loadIslandUsers) {
             window.loadIslandUsers();
         }
+    }
+}
+
+// Initialize all settings toggle switches
+function initializeSettingsToggles() {
+    // Initialize mobile bottom nav toggle
+    const mobileNavToggle = document.getElementById('mobile-bottom-nav-toggle');
+    if (mobileNavToggle) {
+        // Load saved state
+        const savedState = localStorage.getItem('mobileBottomNavEnabled');
+        if (savedState !== null) {
+            mobileNavToggle.checked = savedState === 'true';
+        }
+
+        // Remove existing listeners to avoid duplicates
+        const newToggle = mobileNavToggle.cloneNode(true);
+        mobileNavToggle.parentNode.replaceChild(newToggle, mobileNavToggle);
+
+        // Add event listener
+        newToggle.addEventListener('change', (e) => {
+            const enabled = e.target.checked;
+            localStorage.setItem('mobileBottomNavEnabled', enabled.toString());
+            if (typeof updateMobileBottomNavVisibility === 'function') {
+                updateMobileBottomNavVisibility();
+            }
+        });
+    }
+
+    // Initialize show voter images toggle
+    const showVoterImagesToggle = document.getElementById('show-voter-images-toggle');
+    if (showVoterImagesToggle) {
+        // Load setting from Firestore
+        if (typeof loadShowVoterImagesSetting === 'function') {
+            loadShowVoterImagesSetting().then(enabled => {
+                window.showVoterImages = enabled !== false; // Default to true
+                showVoterImagesToggle.checked = window.showVoterImages;
+            }).catch(() => {
+                // Default to true if loading fails
+                window.showVoterImages = true;
+                showVoterImagesToggle.checked = true;
+            });
+        }
+
+        // Remove existing listeners to avoid duplicates
+        const newToggle = showVoterImagesToggle.cloneNode(true);
+        showVoterImagesToggle.parentNode.replaceChild(newToggle, showVoterImagesToggle);
+
+        // Add event listener
+        newToggle.addEventListener('change', async (e) => {
+            const enabled = e.target.checked;
+            window.showVoterImages = enabled;
+            if (typeof saveShowVoterImagesSetting === 'function') {
+                await saveShowVoterImagesSetting(enabled);
+            }
+            // Reload voters table if on voters page
+            if (window.currentPage === 'voters' && typeof window.loadVotersData === 'function') {
+                window.loadVotersData();
+            }
+        });
+    }
+
+    // Initialize zero day toggle
+    const zeroDayToggle = document.getElementById('zero-day-toggle');
+    if (zeroDayToggle) {
+        // Load saved state
+        if (typeof loadZeroDayToggle === 'function') {
+            loadZeroDayToggle().then(enabled => {
+                zeroDayToggle.checked = enabled;
+            }).catch(() => {
+                zeroDayToggle.checked = false;
+            });
+        }
+
+        // Remove existing listeners to avoid duplicates
+        const newToggle = zeroDayToggle.cloneNode(true);
+        zeroDayToggle.parentNode.replaceChild(newToggle, zeroDayToggle);
+
+        // Add event listener
+        newToggle.addEventListener('change', async (e) => {
+            const enabled = e.target.checked;
+            if (typeof saveZeroDayToggle === 'function') {
+                await saveZeroDayToggle(enabled);
+            }
+            if (typeof updateZeroDayMenuVisibility === 'function') {
+                updateZeroDayMenuVisibility(enabled);
+            }
+        });
+    }
+
+    // Initialize email notifications toggle
+    const emailNotificationsToggle = document.getElementById('email-notifications-toggle');
+    if (emailNotificationsToggle) {
+        // Load saved state from localStorage
+        const savedState = localStorage.getItem('emailNotificationsEnabled');
+        if (savedState !== null) {
+            emailNotificationsToggle.checked = savedState === 'true';
+        }
+
+        // Remove existing listeners to avoid duplicates
+        const newToggle = emailNotificationsToggle.cloneNode(true);
+        emailNotificationsToggle.parentNode.replaceChild(newToggle, emailNotificationsToggle);
+
+        // Add event listener
+        newToggle.addEventListener('change', (e) => {
+            const enabled = e.target.checked;
+            localStorage.setItem('emailNotificationsEnabled', enabled.toString());
+            console.log('Email notifications:', enabled);
+            // TODO: Implement email notifications functionality
+        });
+    }
+
+    // Initialize push notifications toggle
+    const pushNotificationsToggle = document.getElementById('push-notifications-toggle');
+    if (pushNotificationsToggle) {
+        // Load saved state from localStorage
+        const savedState = localStorage.getItem('pushNotificationsEnabled');
+        if (savedState !== null) {
+            pushNotificationsToggle.checked = savedState === 'true';
+        }
+
+        // Remove existing listeners to avoid duplicates
+        const newToggle = pushNotificationsToggle.cloneNode(true);
+        pushNotificationsToggle.parentNode.replaceChild(newToggle, pushNotificationsToggle);
+
+        // Add event listener
+        newToggle.addEventListener('change', (e) => {
+            const enabled = e.target.checked;
+            localStorage.setItem('pushNotificationsEnabled', enabled.toString());
+            console.log('Push notifications:', enabled);
+            // TODO: Implement push notifications functionality
+        });
     }
 }
 
@@ -23304,6 +23477,7 @@ window.setupSettingsTabs = setupSettingsTabs;
 window.checkAndShowManageUsersTab = checkAndShowManageUsersTab;
 window.populateCampaignInformation = populateCampaignInformation;
 window.populateAccountSettings = populateAccountSettings;
+window.initializeSettingsToggles = initializeSettingsToggles;
 
 // Handle transportation coordinator view (no authentication required - only temporary password)
 window.handleTransportationCoordinatorView = async (campaignEmail, token) => {
