@@ -77,6 +77,7 @@ function getFormTemplate(type) {
 }
 
 // Safe Island Select Populator (DOM-based, no template literal parsing)
+// Respects global filter - if island is selected in global filter, only show that island
 function populateIslandSelect(selectId, constituency) {
     const select = document.getElementById(selectId);
     if (!select) return;
@@ -87,14 +88,35 @@ function populateIslandSelect(selectId, constituency) {
         Array.isArray(window.maldivesData.constituencyIslands[constituency]) ?
         window.maldivesData.constituencyIslands[constituency] : [];
 
+    // Apply global filter - if island is selected, only show that island
+    let filteredIslands = islands;
+    const globalFilter = window.globalFilterState || {
+        constituency: null,
+        island: null,
+        initialized: false
+    };
+    
+    if (globalFilter.initialized && globalFilter.island) {
+        filteredIslands = islands.filter(island => island === globalFilter.island);
+    }
+
     select.innerHTML = '<option value="">Select island</option>';
 
-    islands.forEach(island => {
+    filteredIslands.forEach(island => {
         const opt = document.createElement('option');
         opt.value = island;
         opt.textContent = island;
         select.appendChild(opt);
     });
+    
+    // If only one island from global filter, disable and lock it
+    if (globalFilter.initialized && globalFilter.island && filteredIslands.length === 1) {
+        select.disabled = true;
+        select.title = 'Island is locked by global filter';
+    } else {
+        select.disabled = false;
+        select.title = '';
+    }
 }
 
 // Candidate Form Template
@@ -575,55 +597,27 @@ function getAgentFormTemplate() {
                         <option value="">Select island</option>
                     </select>
                 </div>
-    /div>
-div > <
-    /div> <
-div class = "form-group" >
-    <
-    label
-for = "agent-area" > Assigned Area < /label> <
-input type = "text"
-id = "agent-area"
-name = "agent-area"
-placeholder = "Enter assigned area (optional)" >
-    <
-    /div> <
-div class = "form-row" >
-    <
-    div class = "form-group" >
-    <
-    label
-for = "agent-phone" > Phone Number < /label> <
-input type = "tel"
-id = "agent-phone"
-name = "agent-phone"
-placeholder = "Enter phone number" >
-    <
-    /div> <
-div class = "form-group" >
-    <
-    label
-for = "agent-email" > Email < /label> <
-input type = "email"
-id = "agent-email"
-name = "agent-email"
-placeholder = "Enter email address" >
-    <
-    /div> < /
-div > <
-    div id = "modal-error"
-class = "error-message"
-style = "display: none;" > < /div> <
-div class = "modal-footer" >
-    <
-    button type = "button"
-class = "btn-secondary btn-compact"
-onclick = "closeModal()" > Cancel < /button> <
-button type = "submit"
-class = "btn-primary btn-compact"
-id = "agent-submit-btn" > Add Agent < /button> < /
-div > <
-    /form>
+            </div>
+            <div class="form-group">
+                <label for="agent-area">Assigned Area</label>
+                <input type="text" id="agent-area" name="agent-area" placeholder="Enter assigned area (optional)">
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="agent-phone">Phone Number</label>
+                    <input type="tel" id="agent-phone" name="agent-phone" placeholder="Enter phone number">
+                </div>
+                <div class="form-group">
+                    <label for="agent-email">Email</label>
+                    <input type="email" id="agent-email" name="agent-email" placeholder="Enter email address">
+                </div>
+            </div>
+            <div id="modal-error" class="error-message" style="display: none;"></div>
+            <div class="modal-footer">
+                <button type="button" class="btn-secondary btn-compact" onclick="closeModal()">Cancel</button>
+                <button type="submit" class="btn-primary btn-compact" id="agent-submit-btn">Add Agent</button>
+            </div>
+        </form>
     `;
 }
 
@@ -888,6 +882,11 @@ function getIslandUserFormTemplate() {
             <div class="form-group">
                 <label for="island-user-email">Email *</label>
                 <input type="email" id="island-user-email" name="island-user-email" placeholder="Enter email address" required>
+            </div>
+            <div class="form-group" id="island-user-password-group">
+                <label for="island-user-password">Password *</label>
+                <input type="password" id="island-user-password" name="island-user-password" placeholder="Enter password (minimum 6 characters)" minlength="6" required>
+                <small style="color: var(--text-light); font-size: 12px;">Minimum 6 characters required</small>
             </div>
             <div class="form-group">
                 <label for="island-user-phone">Phone *</label>
@@ -1574,6 +1573,11 @@ voters / $ {
                         notes: cleanFormValue(notes),
                         [emailField]: window.userEmail
                     };
+                    
+                    // For island users, also set campaignEmail to allow coordinator links to work
+                    if (window.isIslandUser && window.islandUserData && window.islandUserData.campaignEmail) {
+                        dataToSave.campaignEmail = window.islandUserData.campaignEmail;
+                    }
 
                     // Only add createdAt if it's a new record (not editing)
                     const form = document.getElementById('modal-form');
@@ -1622,6 +1626,11 @@ voters / $ {
                         notes: cleanFormValue(notes),
                         [emailField]: window.userEmail
                     };
+                    
+                    // For island users, also set campaignEmail to allow coordinator links to work
+                    if (window.isIslandUser && window.islandUserData && window.islandUserData.campaignEmail) {
+                        dataToSave.campaignEmail = window.islandUserData.campaignEmail;
+                    }
 
                     // Only add createdAt if it's a new record (not editing)
                     const form = document.getElementById('modal-form');
@@ -1675,6 +1684,11 @@ voters / $ {
                         notes: cleanFormValue(notes),
                         [emailField]: window.userEmail
                     };
+                    
+                    // For island users, also set campaignEmail to allow coordinator links to work
+                    if (window.isIslandUser && window.islandUserData && window.islandUserData.campaignEmail) {
+                        dataToSave.campaignEmail = window.islandUserData.campaignEmail;
+                    }
 
                     // Only add createdAt if it's a new record (not editing)
                     const form = document.getElementById('modal-form');
@@ -1687,12 +1701,18 @@ voters / $ {
                 }
                 break;
 
-            case 'island-user':
+            case 'island-user': {
                 const islandUserName = formData.get('island-user-name');
                 const islandUserEmail = formData.get('island-user-email');
+                const islandUserPassword = formData.get('island-user-password');
                 const islandUserPhone = formData.get('island-user-phone');
                 const islandUserConstituency = formData.get('island-user-constituency');
                 const islandUserIsland = formData.get('island-user-island');
+
+                // Check if this is an edit operation
+                const islandUserForm = document.getElementById('modal-form');
+                const editIslandUserId = islandUserForm && islandUserForm.dataset.editIslandUserId ? islandUserForm.dataset.editIslandUserId : null;
+                const isEditing = !!editIslandUserId;
 
                 if (!islandUserName || !islandUserName.trim()) {
                     showModalError('Full name is required.');
@@ -1701,6 +1721,17 @@ voters / $ {
                 if (!islandUserEmail || !islandUserEmail.trim()) {
                     showModalError('Email is required.');
                     return;
+                }
+                // Password is only required when creating (not editing)
+                if (!isEditing) {
+                    if (!islandUserPassword || !islandUserPassword.trim()) {
+                        showModalError('Password is required.');
+                        return;
+                    }
+                    if (islandUserPassword.trim().length < 6) {
+                        showModalError('Password must be at least 6 characters long.');
+                        return;
+                    }
                 }
                 if (!islandUserPhone || !islandUserPhone.trim()) {
                     showModalError('Phone number is required.');
@@ -1711,15 +1742,35 @@ voters / $ {
                     return;
                 }
 
+                // Get authenticated user email (campaign manager) - use auth.currentUser for accuracy
+                // Use the exact email from Firebase Auth to match what Firestore rules check (request.auth.token.email)
+                let campaignManagerEmail = null;
+                if (window.auth && window.auth.currentUser && window.auth.currentUser.email) {
+                    campaignManagerEmail = window.auth.currentUser.email;
+                } else if (window.userEmail) {
+                    campaignManagerEmail = window.userEmail;
+                }
+                
+                if (!campaignManagerEmail) {
+                    showModalError('You must be logged in to create island users.');
+                    return;
+                }
+
                 dataToSave = {
                     name: islandUserName.trim(),
                     email: islandUserEmail.trim().toLowerCase(),
                     phone: islandUserPhone.trim(),
                     constituency: islandUserConstituency || (window.campaignData && window.campaignData.constituency ? window.campaignData.constituency : ''),
                     island: islandUserIsland.trim(),
-                    campaignEmail: window.userEmail // Store the campaign manager's email
+                    campaignEmail: campaignManagerEmail // Store the campaign manager's email exactly as in auth token (no normalization)
                 };
+                
+                // Store password only when creating (not editing)
+                if (!isEditing && islandUserPassword) {
+                    dataToSave.password = islandUserPassword.trim();
+                }
                 break;
+            }
         }
 
         let collectionName;
@@ -2033,24 +2084,49 @@ voters / $ {
                 serverTimestamp
             } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
             const {
-                createUserWithEmailAndPassword
+                createUserWithEmailAndPassword,
+                getAuth
             } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js');
 
-            // Generate temporary password
-            const tempPassword = generateIslandUserPassword();
+            // Use provided password (from form) instead of generating one
+            const userPassword = dataToSave.password || generateIslandUserPassword();
             const islandUserEmail = dataToSave.email.toLowerCase().trim();
+
+            // Verify we're still authenticated as the campaign manager before saving to Firestore
+            // This ensures Firestore rules can verify campaignEmail matches the authenticated user
+            const firebaseAuth = window.auth || getAuth();
+            const currentAuthUser = firebaseAuth.currentUser;
+            if (!currentAuthUser || !currentAuthUser.email) {
+                showModalError('You must be logged in to create island users.');
+                return;
+            }
+            const authenticatedEmail = currentAuthUser.email; // Use exact email (no normalization to match Firestore token)
+            
+            // Ensure campaignEmail matches the authenticated user's email exactly (required for Firestore rules)
+            // This is critical - Firestore rules check: request.resource.data.campaignEmail == request.auth.token.email
+            if (!dataToSave.campaignEmail || dataToSave.campaignEmail !== authenticatedEmail) {
+                console.warn('campaignEmail mismatch detected, correcting:', {
+                    dataToSaveCampaignEmail: dataToSave.campaignEmail,
+                    authenticatedEmail: authenticatedEmail
+                });
+                dataToSave.campaignEmail = authenticatedEmail;
+            }
+
+            // Remove password from dataToSave before saving to Firestore (don't store plain text password)
+            delete dataToSave.password;
 
             // Log password for debugging (remove in production if needed)
             console.log('Creating island user:', {
                 email: islandUserEmail,
-                passwordLength: tempPassword.length,
-                passwordPreview: tempPassword.substring(0, 3) + '...'
+                campaignEmail: campaignManagerEmail,
+                passwordLength: userPassword.length,
+                passwordPreview: userPassword.substring(0, 3) + '...'
             });
 
             // IMPORTANT: Save to Firestore FIRST while still authenticated as campaign manager
             // This ensures the Firestore rules can verify campaignEmail matches the authenticated user
-            // Store password as string (ensure no type conversion issues)
-            dataToSave.tempPassword = String(tempPassword);
+            // Store password as string (ensure no type conversion issues) - this is for display purposes only
+            dataToSave.tempPassword = String(userPassword);
             dataToSave.passwordGeneratedAt = serverTimestamp();
             // createdAt is already set in dataToSave from the case statement, but update it here to ensure it's set
             if (!dataToSave.createdAt) {
@@ -2059,11 +2135,22 @@ voters / $ {
 
             let docRef;
             try {
+                console.log('Attempting to save island user to Firestore with data:', {
+                    ...dataToSave,
+                    tempPassword: '[REDACTED]'
+                });
                 docRef = await addDoc(collection(window.db, 'islandUsers'), dataToSave);
                 console.log('Island user saved to Firestore:', docRef.id);
             } catch (firestoreError) {
                 console.error('Error saving island user to Firestore:', firestoreError);
-                showModalError('Failed to save island user. Please try again.');
+                console.error('Firestore error details:', {
+                    code: firestoreError.code,
+                    message: firestoreError.message,
+                    campaignEmail: dataToSave.campaignEmail,
+                    authEmail: campaignManagerEmail,
+                    currentUser: currentAuthUser ? currentAuthUser.email : 'null'
+                });
+                showModalError('Failed to save island user. Please check Firestore rules. Error: ' + (firestoreError.message || firestoreError.code));
                 return;
             }
 
@@ -2086,7 +2173,7 @@ voters / $ {
 
                 // Create the island user (this will automatically sign them in, replacing the current session)
                 // Ensure password is a string and email is lowercase
-                await createUserWithEmailAndPassword(firebaseAuth, islandUserEmail, String(tempPassword));
+                await createUserWithEmailAndPassword(firebaseAuth, islandUserEmail, String(userPassword));
                 console.log('Firebase Auth user created successfully');
 
                 // Immediately sign out the newly created island user
@@ -2133,7 +2220,7 @@ voters / $ {
             closeModal();
 
             // Show prompt with email and password
-            showIslandUserCredentialsPrompt(islandUserEmail, tempPassword);
+            showIslandUserCredentialsPrompt(islandUserEmail, userPassword);
 
             // Reload island users table with a small delay to ensure Firestore write is complete
             if (window.loadIslandUsers) {
@@ -2618,14 +2705,28 @@ function showModalError(message) {
 
 // Setup island dropdown based on constituency selection
 // Note: Constituency is auto-filled from campaign setup, island selection is based on constituency
+// Respects global filter - if island is selected, only show that island
 function setupIslandDropdown() {
     const islandSelect = document.getElementById('voter-island');
+    if (!islandSelect) return;
 
     // Populate island dropdown based on constituency from campaign data
-    if (islandSelect && window.campaignData && window.campaignData.constituency) {
+    if (window.campaignData && window.campaignData.constituency) {
         const constituency = window.campaignData.constituency;
         if (window.maldivesData && window.maldivesData.constituencyIslands && window.maldivesData.constituencyIslands[constituency]) {
-            const islands = window.maldivesData.constituencyIslands[constituency];
+            let islands = window.maldivesData.constituencyIslands[constituency];
+            
+            // Apply global filter - if island is selected, only show that island
+            const globalFilter = window.globalFilterState || {
+                constituency: null,
+                island: null,
+                initialized: false
+            };
+            
+            if (globalFilter.initialized && globalFilter.island) {
+                islands = islands.filter(island => island === globalFilter.island);
+            }
+            
             islandSelect.innerHTML = '<option value="">Select island</option>';
             islands.sort().forEach(island => {
                 const option = document.createElement('option');
@@ -2636,6 +2737,15 @@ function setupIslandDropdown() {
                 }
                 islandSelect.appendChild(option);
             });
+            
+            // If only one island from global filter, disable and lock it
+            if (globalFilter.initialized && globalFilter.island && islands.length === 1) {
+                islandSelect.disabled = true;
+                islandSelect.title = 'Island is locked by global filter';
+            } else {
+                islandSelect.disabled = false;
+                islandSelect.title = '';
+            }
         }
     } else {
         islandSelect.innerHTML = '<option value="">Select island</option>';

@@ -1786,11 +1786,23 @@ async function loadDashboardData(forceRefresh = false) {
         }
 
         // Setup real-time listeners for dynamic statistics
-        const candidatesQuery = query(collection(window.db, 'candidates'), where('email', '==', window.userEmail));
-        const votersQuery = query(collection(window.db, 'voters'), where('email', '==', window.userEmail));
-        // Events use campaignEmail, and we want to count only upcoming events (future dates)
-        const eventsQuery = query(collection(window.db, 'events'), where('campaignEmail', '==', window.userEmail));
-        const callsQuery = query(collection(window.db, 'calls'), where('campaignEmail', '==', window.userEmail));
+        // For island users, query by island; for campaign managers, query by email/campaignEmail
+        let candidatesQuery, votersQuery, eventsQuery, callsQuery;
+        
+        if (window.isIslandUser && window.islandUserData && window.islandUserData.island) {
+            console.log('[loadDashboardData] Island user - querying by island:', window.islandUserData.island);
+            candidatesQuery = query(collection(window.db, 'candidates'), where('island', '==', window.islandUserData.island));
+            votersQuery = query(collection(window.db, 'voters'), where('island', '==', window.islandUserData.island));
+            eventsQuery = query(collection(window.db, 'events'), where('island', '==', window.islandUserData.island));
+            callsQuery = query(collection(window.db, 'calls'), where('island', '==', window.islandUserData.island));
+        } else {
+            // Campaign managers query by email/campaignEmail
+            candidatesQuery = query(collection(window.db, 'candidates'), where('email', '==', window.userEmail));
+            votersQuery = query(collection(window.db, 'voters'), where('email', '==', window.userEmail));
+            // Events use campaignEmail, and we want to count only upcoming events (future dates)
+            eventsQuery = query(collection(window.db, 'events'), where('campaignEmail', '==', window.userEmail));
+            callsQuery = query(collection(window.db, 'calls'), where('campaignEmail', '==', window.userEmail));
+        }
 
         // Update progress: Setting up listeners
         if (window.updateComponentProgress) {
@@ -2240,7 +2252,13 @@ async function setupPledgeStatsListener() {
             where,
             onSnapshot
         } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
-        const pledgesQuery = query(collection(window.db, 'pledges'), where('email', '==', window.userEmail));
+        // For island users, query by island; for campaign managers, query by email
+        let pledgesQuery;
+        if (window.isIslandUser && window.islandUserData && window.islandUserData.island) {
+            pledgesQuery = query(collection(window.db, 'pledges'), where('island', '==', window.islandUserData.island));
+        } else {
+            pledgesQuery = query(collection(window.db, 'pledges'), where('email', '==', window.userEmail));
+        }
 
         const unsubPledges = onSnapshot(pledgesQuery,
             async (snapshot) => {
@@ -2355,7 +2373,13 @@ async function setupAgentStatsListener() {
             where,
             onSnapshot
         } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
-        const agentsQuery = query(collection(window.db, 'agents'), where('email', '==', window.userEmail));
+        // For island users, query by island; for campaign managers, query by email
+        let agentsQuery;
+        if (window.isIslandUser && window.islandUserData && window.islandUserData.island) {
+            agentsQuery = query(collection(window.db, 'agents'), where('island', '==', window.islandUserData.island));
+        } else {
+            agentsQuery = query(collection(window.db, 'agents'), where('email', '==', window.userEmail));
+        }
 
         const unsubAgents = onSnapshot(agentsQuery,
             (snapshot) => {
@@ -2479,7 +2503,13 @@ async function loadVoterDetailedStats(container) {
         where,
         getDocs
     } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
-    const votersQuery = query(collection(window.db, 'voters'), where('email', '==', window.userEmail));
+    // For island users, query by island; for campaign managers, query by email
+    let votersQuery;
+    if (window.isIslandUser && window.islandUserData && window.islandUserData.island) {
+        votersQuery = query(collection(window.db, 'voters'), where('island', '==', window.islandUserData.island));
+    } else {
+        votersQuery = query(collection(window.db, 'voters'), where('email', '==', window.userEmail));
+    }
     const snapshot = await getDocs(votersQuery);
 
     // Apply global filter
@@ -2662,7 +2692,13 @@ async function loadAgentDetailedStats(container) {
         where,
         getDocs
     } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
-    const agentsQuery = query(collection(window.db, 'agents'), where('email', '==', window.userEmail));
+    // For island users, query by island; for campaign managers, query by email
+    let agentsQuery;
+    if (window.isIslandUser && window.islandUserData && window.islandUserData.island) {
+        agentsQuery = query(collection(window.db, 'agents'), where('island', '==', window.islandUserData.island));
+    } else {
+        agentsQuery = query(collection(window.db, 'agents'), where('email', '==', window.userEmail));
+    }
     const agentsSnapshot = await getDocs(agentsQuery);
 
     const agents = [];
@@ -2671,8 +2707,13 @@ async function loadAgentDetailedStats(container) {
         ...doc.data()
     }));
 
-    // Get voter assignments
-    const votersQuery = query(collection(window.db, 'voters'), where('email', '==', window.userEmail));
+    // Get voter assignments - use island for island users
+    let votersQuery;
+    if (window.isIslandUser && window.islandUserData && window.islandUserData.island) {
+        votersQuery = query(collection(window.db, 'voters'), where('island', '==', window.islandUserData.island));
+    } else {
+        votersQuery = query(collection(window.db, 'voters'), where('email', '==', window.userEmail));
+    }
     const votersSnapshot = await getDocs(votersQuery);
 
     const agentStats = {};
@@ -2691,8 +2732,13 @@ async function loadAgentDetailedStats(container) {
         }
     });
 
-    // Get pledge counts
-    const pledgesQuery = query(collection(window.db, 'pledges'), where('email', '==', window.userEmail));
+    // Get pledge counts - use island for island users
+    let pledgesQuery;
+    if (window.isIslandUser && window.islandUserData && window.islandUserData.island) {
+        pledgesQuery = query(collection(window.db, 'pledges'), where('island', '==', window.islandUserData.island));
+    } else {
+        pledgesQuery = query(collection(window.db, 'pledges'), where('email', '==', window.userEmail));
+    }
     const pledgesSnapshot = await getDocs(pledgesQuery);
     pledgesSnapshot.forEach(doc => {
         const pledge = doc.data();
@@ -2890,19 +2936,24 @@ async function loadRecentActivities(forceRefresh = false) {
         const activities = [];
         const maxActivities = 3;
 
+        // For island users, query by island; for campaign managers, query by email/campaignEmail
+        const isIslandUser = window.isIslandUser && window.islandUserData && window.islandUserData.island;
+        const island = isIslandUser ? window.islandUserData.island : null;
+        
         // Get recent candidates
         try {
-            // Query without orderBy first to avoid index issues
             const candidatesQuery = query(
                 collection(window.db, 'candidates'),
-                where('email', '==', window.userEmail),
+                isIslandUser ? where('island', '==', island) : where('email', '==', window.userEmail),
                 limit(5)
             );
             const candidatesSnap = await getDocs(candidatesQuery);
             candidatesSnap.forEach(doc => {
                 const data = doc.data();
-                // Only include if email matches (security check)
-                if (data.email === window.userEmail || data.campaignEmail === window.userEmail) {
+                // Only include if email/island matches (security check)
+                const emailMatches = data.email === window.userEmail || data.campaignEmail === window.userEmail;
+                const islandMatches = isIslandUser && data.island === island;
+                if (emailMatches || islandMatches) {
                     activities.push({
                         type: 'candidate',
                         icon: '👤',
@@ -2920,14 +2971,16 @@ async function loadRecentActivities(forceRefresh = false) {
         try {
             const votersQuery = query(
                 collection(window.db, 'voters'),
-                where('email', '==', window.userEmail),
+                isIslandUser ? where('island', '==', island) : where('email', '==', window.userEmail),
                 limit(5)
             );
             const votersSnap = await getDocs(votersQuery);
             votersSnap.forEach(doc => {
                 const data = doc.data();
-                // Only include if email matches (security check)
-                if (data.email === window.userEmail || data.campaignEmail === window.userEmail) {
+                // Only include if email/island matches (security check)
+                const emailMatches = data.email === window.userEmail || data.campaignEmail === window.userEmail;
+                const islandMatches = isIslandUser && data.island === island;
+                if (emailMatches || islandMatches) {
                     activities.push({
                         type: 'voter',
                         icon: '🗳️',
@@ -2945,14 +2998,16 @@ async function loadRecentActivities(forceRefresh = false) {
         try {
             const eventsQuery = query(
                 collection(window.db, 'events'),
-                where('email', '==', window.userEmail),
+                isIslandUser ? where('island', '==', island) : where('campaignEmail', '==', window.userEmail),
                 limit(5)
             );
             const eventsSnap = await getDocs(eventsQuery);
             eventsSnap.forEach(doc => {
                 const data = doc.data();
-                // Only include if email matches (security check)
-                if (data.email === window.userEmail || data.campaignEmail === window.userEmail) {
+                // Only include if email/island matches (security check)
+                const emailMatches = data.email === window.userEmail || data.campaignEmail === window.userEmail;
+                const islandMatches = isIslandUser && data.island === island;
+                if (emailMatches || islandMatches) {
                     activities.push({
                         type: 'event',
                         icon: '📅',
@@ -2970,14 +3025,16 @@ async function loadRecentActivities(forceRefresh = false) {
         try {
             const callsQuery = query(
                 collection(window.db, 'calls'),
-                where('email', '==', window.userEmail),
+                isIslandUser ? where('island', '==', island) : where('campaignEmail', '==', window.userEmail),
                 limit(5)
             );
             const callsSnap = await getDocs(callsQuery);
             callsSnap.forEach(doc => {
                 const data = doc.data();
-                // Only include if email matches (security check)
-                if (data.email === window.userEmail || data.campaignEmail === window.userEmail) {
+                // Only include if email/island matches (security check)
+                const emailMatches = data.email === window.userEmail || data.campaignEmail === window.userEmail;
+                const islandMatches = isIslandUser && data.island === island;
+                if (emailMatches || islandMatches) {
                     activities.push({
                         type: 'call',
                         icon: '📞',
@@ -2995,14 +3052,16 @@ async function loadRecentActivities(forceRefresh = false) {
         try {
             const pledgesQuery = query(
                 collection(window.db, 'pledges'),
-                where('email', '==', window.userEmail),
+                isIslandUser ? where('island', '==', island) : where('email', '==', window.userEmail),
                 limit(5)
             );
             const pledgesSnap = await getDocs(pledgesQuery);
             pledgesSnap.forEach(doc => {
                 const data = doc.data();
-                // Only include if email matches (security check)
-                if (data.email === window.userEmail || data.campaignEmail === window.userEmail) {
+                // Only include if email/island matches (security check)
+                const emailMatches = data.email === window.userEmail || data.campaignEmail === window.userEmail;
+                const islandMatches = isIslandUser && data.island === island;
+                if (emailMatches || islandMatches) {
                     activities.push({
                         type: 'pledge',
                         icon: '✅',
@@ -3158,12 +3217,58 @@ async function loadCandidatesData(forceRefresh = false) {
             getDocs
         } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
 
-        const candidatesQuery = query(collection(window.db, 'candidates'), where('email', '==', window.userEmail));
-        const snapshot = await getDocs(candidatesQuery);
+        let snapshot;
+        // For island users, query by island field; for campaign managers, query by email/campaignEmail
+        if (window.isIslandUser && window.islandUserData && window.islandUserData.island) {
+            console.log('[loadCandidatesData] Island user - querying by island:', window.islandUserData.island);
+            try {
+                const candidatesQuery = query(collection(window.db, 'candidates'), where('island', '==', window.islandUserData.island));
+                snapshot = await getDocs(candidatesQuery);
+            } catch (islandQueryError) {
+                console.error('[loadCandidatesData] Query by island failed:', islandQueryError);
+                snapshot = { docs: [] };
+            }
+        } else {
+            // Try both email and campaignEmail fields for campaign managers
+            const emailDocs = [];
+            const campaignEmailDocs = [];
+            const allDocIds = new Set();
+            
+            try {
+                const emailQuery = query(collection(window.db, 'candidates'), where('email', '==', window.userEmail));
+                const emailSnapshot = await getDocs(emailQuery);
+                emailSnapshot.docs.forEach(doc => {
+                    if (!allDocIds.has(doc.id)) {
+                        emailDocs.push(doc);
+                        allDocIds.add(doc.id);
+                    }
+                });
+            } catch (e) {
+                console.warn('[loadCandidatesData] Query by email failed:', e);
+            }
+            
+            try {
+                const campaignEmailQuery = query(collection(window.db, 'candidates'), where('campaignEmail', '==', window.userEmail));
+                const campaignSnapshot = await getDocs(campaignEmailQuery);
+                campaignSnapshot.docs.forEach(doc => {
+                    if (!allDocIds.has(doc.id)) {
+                        campaignEmailDocs.push(doc);
+                        allDocIds.add(doc.id);
+                    }
+                });
+            } catch (e) {
+                console.warn('[loadCandidatesData] Query by campaignEmail failed:', e);
+            }
+            
+            // Combine results
+            snapshot = {
+                docs: [...emailDocs, ...campaignEmailDocs]
+            };
+        }
 
         // Store in cache
         let candidatesArray = [];
-        snapshot.forEach(doc => {
+        snapshot.docs.forEach(doc => {
             candidatesArray.push({
                 id: doc.id,
                 ...doc.data()
@@ -4282,11 +4387,20 @@ async function setupRealtimeListener(collectionName, tableType) {
             onSnapshot
         } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
 
-        // Determine the email field to use
-        // For voters, we need to handle both 'email' and 'campaignEmail' fields
+        // For island users, query by island; for campaign managers, query by email/campaignEmail
+        const isIslandUser = window.isIslandUser && window.islandUserData && window.islandUserData.island;
+        const island = isIslandUser ? window.islandUserData.island : null;
+        
         let collectionQuery;
         let emailField; // Define emailField outside if/else for logging
-        if (collectionName === 'voters') {
+        if (isIslandUser) {
+            // Island users query by island
+            collectionQuery = query(
+                collection(window.db, collectionName),
+                where('island', '==', island)
+            );
+            console.log(`[Real-time Sync] ${tableType} listener configured for island user, island: ${island}`);
+        } else if (collectionName === 'voters') {
             // Try email field first, but we'll handle both in the listener
             emailField = 'email';
             collectionQuery = query(
@@ -5566,6 +5680,10 @@ async function loadVotersData(forceRefresh = false) {
 
         console.log('[loadVotersData] Starting to fetch voters from Firebase...');
         console.log('[loadVotersData] User email:', window.userEmail);
+        console.log('[loadVotersData] Is island user:', window.isIslandUser);
+        if (window.isIslandUser && window.islandUserData) {
+            console.log('[loadVotersData] Island user data:', window.islandUserData);
+        }
         const startTime = performance.now();
 
         try {
@@ -5573,51 +5691,70 @@ async function loadVotersData(forceRefresh = false) {
                 window.updateComponentProgress('voters', 30);
             }
 
-            // Query voters by both email and campaignEmail fields
-            // Firestore doesn't support OR queries, so we need to query both and combine
-            const emailDocs = [];
-            const campaignEmailDocs = [];
-            const allDocIds = new Set();
+            // For island users, query by island field instead of email/campaignEmail
+            if (window.isIslandUser && window.islandUserData && window.islandUserData.island) {
+                console.log('[loadVotersData] Querying voters by island:', window.islandUserData.island);
+                try {
+                    votersQuery = query(collection(window.db, 'voters'), where('island', '==', window.islandUserData.island));
+                    const islandSnapshot = await getDocs(votersQuery);
+                    snapshot = {
+                        docs: islandSnapshot.docs
+                    };
+                    console.log(`[loadVotersData] Query by 'island' returned ${islandSnapshot.docs.length} documents`);
+                } catch (islandQueryError) {
+                    console.error('[loadVotersData] Query by island failed:', islandQueryError);
+                    // Fallback to empty result
+                    snapshot = {
+                        docs: []
+                    };
+                }
+            } else {
+                // For campaign managers, query by both email and campaignEmail fields
+                // Firestore doesn't support OR queries, so we need to query both and combine
+                const emailDocs = [];
+                const campaignEmailDocs = [];
+                const allDocIds = new Set();
 
-            // Query by 'email' field
-            try {
-                votersQuery = query(collection(window.db, 'voters'), where('email', '==', window.userEmail));
-                const emailSnapshot = await getDocs(votersQuery);
-                emailSnapshot.docs.forEach(doc => {
-                    if (!allDocIds.has(doc.id)) {
-                        emailDocs.push(doc);
-                        allDocIds.add(doc.id);
-                    }
-                });
-                console.log(`[loadVotersData] Query by 'email' returned ${emailSnapshot.docs.length} documents`);
-            } catch (emailQueryError) {
-                console.warn('[loadVotersData] Query by email failed:', emailQueryError);
+                // Query by 'email' field
+                try {
+                    votersQuery = query(collection(window.db, 'voters'), where('email', '==', window.userEmail));
+                    const emailSnapshot = await getDocs(votersQuery);
+                    emailSnapshot.docs.forEach(doc => {
+                        if (!allDocIds.has(doc.id)) {
+                            emailDocs.push(doc);
+                            allDocIds.add(doc.id);
+                        }
+                    });
+                    console.log(`[loadVotersData] Query by 'email' returned ${emailSnapshot.docs.length} documents`);
+                } catch (emailQueryError) {
+                    console.warn('[loadVotersData] Query by email failed:', emailQueryError);
+                }
+
+                // Query by 'campaignEmail' field
+                try {
+                    votersQuery = query(collection(window.db, 'voters'), where('campaignEmail', '==', window.userEmail));
+                    const campaignSnapshot = await getDocs(votersQuery);
+                    campaignSnapshot.docs.forEach(doc => {
+                        if (!allDocIds.has(doc.id)) {
+                            campaignEmailDocs.push(doc);
+                            allDocIds.add(doc.id);
+                        }
+                    });
+                    console.log(`[loadVotersData] Query by 'campaignEmail' returned ${campaignSnapshot.docs.length} documents`);
+                } catch (campaignQueryError) {
+                    console.warn('[loadVotersData] Query by campaignEmail failed:', campaignQueryError);
+                }
+
+                // Combine results (avoiding duplicates)
+                const combinedDocs = [...emailDocs, ...campaignEmailDocs];
+                snapshot = {
+                    docs: combinedDocs
+                };
+                console.log(`[loadVotersData] Combined results: ${combinedDocs.length} unique voters found`);
             }
 
-            // Query by 'campaignEmail' field
-            try {
-                votersQuery = query(collection(window.db, 'voters'), where('campaignEmail', '==', window.userEmail));
-                const campaignSnapshot = await getDocs(votersQuery);
-                campaignSnapshot.docs.forEach(doc => {
-                    if (!allDocIds.has(doc.id)) {
-                        campaignEmailDocs.push(doc);
-                        allDocIds.add(doc.id);
-                    }
-                });
-                console.log(`[loadVotersData] Query by 'campaignEmail' returned ${campaignSnapshot.docs.length} documents`);
-            } catch (campaignQueryError) {
-                console.warn('[loadVotersData] Query by campaignEmail failed:', campaignQueryError);
-            }
-
-            // Combine results (avoiding duplicates)
-            const combinedDocs = [...emailDocs, ...campaignEmailDocs];
-            snapshot = {
-                docs: combinedDocs
-            };
-            console.log(`[loadVotersData] Combined results: ${combinedDocs.length} unique voters found`);
-
-            // If still no results, try loading all voters (fallback - useful if email fields aren't set or for admin)
-            if (combinedDocs.length === 0) {
+            // If still no results (only for campaign managers), try loading all voters (fallback - useful if email fields aren't set or for admin)
+            if (!window.isIslandUser && snapshot.docs.length === 0) {
                 console.log('[loadVotersData] No results from filtered queries, trying fallback: loading ALL voters from Firestore');
                 try {
                     const allVotersQuery = query(collection(window.db, 'voters'));
@@ -5682,27 +5819,33 @@ async function loadVotersData(forceRefresh = false) {
             return;
         }
 
-        // Filter to ensure we only show voters matching user email (unless admin or no email fields set)
+        // Filter to ensure we only show voters matching user email (unless admin, island user, or no email fields set)
         const isAdmin = window.userEmail === 'rixaski@gmail.com';
-        let filteredDocs = snapshot.docs.filter(doc => {
-            const data = doc.data();
-            // Admin can see all voters, or if email fields aren't set, show all
-            if (isAdmin || (!data.email && !data.campaignEmail)) {
-                return true;
-            }
-            const matches = data.email === window.userEmail || data.campaignEmail === window.userEmail;
-            if (!matches && snapshot.docs.length > 0 && snapshot.docs.indexOf(doc) === 0) {
-                console.log('[loadVotersData] Sample voter data (filtered out):', {
-                    email: data.email,
-                    campaignEmail: data.campaignEmail,
-                    userEmail: window.userEmail,
-                    name: data.name
-                });
-            }
-            return matches;
-        });
-
-        console.log(`[loadVotersData] After email filtering: ${filteredDocs.length} voters`);
+        let filteredDocs = snapshot.docs;
+        
+        // For island users, we've already queried by island, so no need to filter by email
+        if (!window.isIslandUser) {
+            filteredDocs = snapshot.docs.filter(doc => {
+                const data = doc.data();
+                // Admin can see all voters, or if email fields aren't set, show all
+                if (isAdmin || (!data.email && !data.campaignEmail)) {
+                    return true;
+                }
+                const matches = data.email === window.userEmail || data.campaignEmail === window.userEmail;
+                if (!matches && snapshot.docs.length > 0 && snapshot.docs.indexOf(doc) === 0) {
+                    console.log('[loadVotersData] Sample voter data (filtered out):', {
+                        email: data.email,
+                        campaignEmail: data.campaignEmail,
+                        userEmail: window.userEmail,
+                        name: data.name
+                    });
+                }
+                return matches;
+            });
+            console.log(`[loadVotersData] After email filtering: ${filteredDocs.length} voters`);
+        } else {
+            console.log(`[loadVotersData] Island user - skipping email filter, using island query results: ${filteredDocs.length} voters`);
+        }
 
         // Apply global filter (constituency and island)
         if (window.globalFilterState && window.globalFilterState.initialized) {
@@ -6119,14 +6262,38 @@ async function loadEventsData(forceRefresh = false) {
 
         let snapshot;
         try {
-            const eventsQuery = query(collection(window.db, 'events'), where('campaignEmail', '==', window.userEmail), orderBy('eventDate', 'asc'));
-            snapshot = await getDocs(eventsQuery);
+            // For island users, query by island field; for campaign managers, query by campaignEmail
+            if (window.isIslandUser && window.islandUserData && window.islandUserData.island) {
+                console.log('[loadEventsData] Island user - querying events by island:', window.islandUserData.island);
+                try {
+                    const eventsQuery = query(collection(window.db, 'events'), where('island', '==', window.islandUserData.island), orderBy('eventDate', 'asc'));
+                    snapshot = await getDocs(eventsQuery);
+                    console.log(`[loadEventsData] Query by 'island' returned ${snapshot.size} documents`);
+                } catch (queryError) {
+                    // If index missing, query without orderBy and sort in JavaScript
+                    if (queryError.code === 'failed-precondition' && queryError.message.includes('index')) {
+                        console.warn('Events index missing for island, querying without orderBy');
+                        const fallbackQuery = query(collection(window.db, 'events'), where('island', '==', window.islandUserData.island));
+                        snapshot = await getDocs(fallbackQuery);
+                    } else {
+                        throw queryError;
+                    }
+                }
+            } else {
+                const eventsQuery = query(collection(window.db, 'events'), where('campaignEmail', '==', window.userEmail), orderBy('eventDate', 'asc'));
+                snapshot = await getDocs(eventsQuery);
+            }
         } catch (queryError) {
-            // If index missing, query without orderBy and sort in JavaScript
+            // If index missing, query without orderBy and sort in JavaScript (for campaign managers)
             if (queryError.code === 'failed-precondition' && queryError.message.includes('index')) {
                 console.warn('Events index missing, sorting in JavaScript');
-                const fallbackQuery = query(collection(window.db, 'events'), where('campaignEmail', '==', window.userEmail));
-                snapshot = await getDocs(fallbackQuery);
+                if (window.isIslandUser && window.islandUserData && window.islandUserData.island) {
+                    const fallbackQuery = query(collection(window.db, 'events'), where('island', '==', window.islandUserData.island));
+                    snapshot = await getDocs(fallbackQuery);
+                } else {
+                    const fallbackQuery = query(collection(window.db, 'events'), where('campaignEmail', '==', window.userEmail));
+                    snapshot = await getDocs(fallbackQuery);
+                }
             } else {
                 throw queryError;
             }
@@ -6982,56 +7149,73 @@ async function loadCallsData(forceRefresh = false) {
             getDocs
         } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
 
-        // Query calls by both campaignEmail and email fields to catch all records
-        let snapshot1, snapshot2;
+        // For island users, query by island field; for campaign managers, query by email/campaignEmail
         const allCalls = new Map(); // Use Map to avoid duplicates
 
         try {
-            // Try querying by campaignEmail first
-            try {
-                const callsQuery1 = query(collection(window.db, 'calls'), where('campaignEmail', '==', window.userEmail), orderBy('callDate', 'desc'));
-                snapshot1 = await getDocs(callsQuery1);
-                snapshot1.forEach(doc => {
-                    allCalls.set(doc.id, {
-                        id: doc.id,
-                        ...doc.data()
+            if (window.isIslandUser && window.islandUserData && window.islandUserData.island) {
+                console.log('[loadCallsData] Island user - querying calls by island:', window.islandUserData.island);
+                try {
+                    const callsQuery = query(collection(window.db, 'calls'), where('island', '==', window.islandUserData.island), orderBy('callDate', 'desc'));
+                    const islandSnapshot = await getDocs(callsQuery);
+                    islandSnapshot.forEach(doc => {
+                        allCalls.set(doc.id, {
+                            id: doc.id,
+                            ...doc.data()
+                        });
                     });
-                });
-            } catch (queryError1) {
-                // If index missing, query without orderBy
-                if (queryError1.code === 'failed-precondition' && queryError1.message.includes('index')) {
-                    console.warn('Calls index missing for campaignEmail, querying without orderBy');
-                    const fallbackQuery1 = query(collection(window.db, 'calls'), where('campaignEmail', '==', window.userEmail));
-                    snapshot1 = await getDocs(fallbackQuery1);
+                    console.log(`[loadCallsData] Query by 'island' returned ${islandSnapshot.size} documents`);
+                } catch (queryError) {
+                    // If index missing, query without orderBy
+                    if (queryError.code === 'failed-precondition' && queryError.message.includes('index')) {
+                        console.warn('Calls index missing for island, querying without orderBy');
+                        const fallbackQuery = query(collection(window.db, 'calls'), where('island', '==', window.islandUserData.island));
+                        const fallbackSnapshot = await getDocs(fallbackQuery);
+                        fallbackSnapshot.forEach(doc => {
+                            allCalls.set(doc.id, {
+                                id: doc.id,
+                                ...doc.data()
+                            });
+                        });
+                    } else {
+                        throw queryError;
+                    }
+                }
+            } else {
+                // Query calls by both campaignEmail and email fields to catch all records
+                let snapshot1, snapshot2;
+
+                // Try querying by campaignEmail first
+                try {
+                    const callsQuery1 = query(collection(window.db, 'calls'), where('campaignEmail', '==', window.userEmail), orderBy('callDate', 'desc'));
+                    snapshot1 = await getDocs(callsQuery1);
                     snapshot1.forEach(doc => {
                         allCalls.set(doc.id, {
                             id: doc.id,
                             ...doc.data()
                         });
                     });
-                }
-            }
-
-            // Also query by email field to catch records that might only have email
-            try {
-                const callsQuery2 = query(collection(window.db, 'calls'), where('email', '==', window.userEmail), orderBy('callDate', 'desc'));
-                snapshot2 = await getDocs(callsQuery2);
-                snapshot2.forEach(doc => {
-                    // Only add if not already in map (avoid duplicates)
-                    if (!allCalls.has(doc.id)) {
-                        allCalls.set(doc.id, {
-                            id: doc.id,
-                            ...doc.data()
+                } catch (queryError1) {
+                    // If index missing, query without orderBy
+                    if (queryError1.code === 'failed-precondition' && queryError1.message.includes('index')) {
+                        console.warn('Calls index missing for campaignEmail, querying without orderBy');
+                        const fallbackQuery1 = query(collection(window.db, 'calls'), where('campaignEmail', '==', window.userEmail));
+                        snapshot1 = await getDocs(fallbackQuery1);
+                        snapshot1.forEach(doc => {
+                            allCalls.set(doc.id, {
+                                id: doc.id,
+                                ...doc.data()
+                            });
                         });
                     }
-                });
-            } catch (queryError2) {
-                // If index missing, query without orderBy
-                if (queryError2.code === 'failed-precondition' && queryError2.message.includes('index')) {
-                    console.warn('Calls index missing for email, querying without orderBy');
-                    const fallbackQuery2 = query(collection(window.db, 'calls'), where('email', '==', window.userEmail));
-                    snapshot2 = await getDocs(fallbackQuery2);
+                }
+
+                // Also query by email field to catch records that might only have email
+                try {
+                    const callsQuery2 = query(collection(window.db, 'calls'), where('email', '==', window.userEmail), orderBy('callDate', 'desc'));
+                    snapshot2 = await getDocs(callsQuery2);
                     snapshot2.forEach(doc => {
+                        // Only add if not already in map (avoid duplicates)
                         if (!allCalls.has(doc.id)) {
                             allCalls.set(doc.id, {
                                 id: doc.id,
@@ -7039,6 +7223,21 @@ async function loadCallsData(forceRefresh = false) {
                             });
                         }
                     });
+                } catch (queryError2) {
+                    // If index missing, query without orderBy
+                    if (queryError2.code === 'failed-precondition' && queryError2.message.includes('index')) {
+                        console.warn('Calls index missing for email, querying without orderBy');
+                        const fallbackQuery2 = query(collection(window.db, 'calls'), where('email', '==', window.userEmail));
+                        snapshot2 = await getDocs(fallbackQuery2);
+                        snapshot2.forEach(doc => {
+                            if (!allCalls.has(doc.id)) {
+                                allCalls.set(doc.id, {
+                                    id: doc.id,
+                                    ...doc.data()
+                                });
+                            }
+                        });
+                    }
                 }
             }
         } catch (error) {
@@ -7249,7 +7448,13 @@ async function setupPledgeStatisticsListener() {
             onSnapshot
         } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
 
-        const pledgesQuery = query(collection(window.db, 'pledges'), where('email', '==', window.userEmail));
+        // For island users, query by island; for campaign managers, query by email
+        let pledgesQuery;
+        if (window.isIslandUser && window.islandUserData && window.islandUserData.island) {
+            pledgesQuery = query(collection(window.db, 'pledges'), where('island', '==', window.islandUserData.island));
+        } else {
+            pledgesQuery = query(collection(window.db, 'pledges'), where('email', '==', window.userEmail));
+        }
 
         window.pledgesStatsListener = onSnapshot(pledgesQuery,
             (snapshot) => {
@@ -7377,60 +7582,68 @@ async function loadPledgesData(forceRefresh = false) {
             getDoc
         } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
 
-        console.log('[loadPledgesData] Querying pledges for email:', window.userEmail);
-
-        // First, let's check if there are any pledges at all (for debugging)
-        const allPledgesQuery = query(collection(window.db, 'pledges'));
-        try {
-            const allPledgesSnapshot = await getDocs(allPledgesQuery);
-            console.log('[loadPledgesData] Total pledges in database:', allPledgesSnapshot.size);
-            if (allPledgesSnapshot.size > 0) {
-                // Log first few pledges to see what email field they have
-                const samplePledges = allPledgesSnapshot.docs.slice(0, 3);
-                samplePledges.forEach((doc, index) => {
-                    const data = doc.data();
-                    console.log(`[loadPledgesData] Sample pledge ${index + 1}:`, {
-                        id: doc.id,
-                        email: data.email,
-                        campaignEmail: data.campaignEmail,
-                        voterName: data.voterName,
-                        agentName: data.agentName
-                    });
-                });
-            }
-        } catch (debugError) {
-            console.warn('[loadPledgesData] Could not fetch all pledges for debugging:', debugError);
-        }
-
-        const pledgesQuery = query(collection(window.db, 'pledges'), where('email', '==', window.userEmail));
         let snapshot;
+        
+        // For island users, query by island field; for campaign managers, query by email/campaignEmail
+        if (window.isIslandUser && window.islandUserData && window.islandUserData.island) {
+            console.log('[loadPledgesData] Island user - querying pledges by island:', window.islandUserData.island);
+            try {
+                const pledgesQuery = query(collection(window.db, 'pledges'), where('island', '==', window.islandUserData.island));
+                snapshot = await getDocs(pledgesQuery);
+                console.log(`[loadPledgesData] Query by 'island' returned ${snapshot.size} documents`);
+            } catch (islandQueryError) {
+                console.error('[loadPledgesData] Query by island failed:', islandQueryError);
+                // Create a snapshot-like object with forEach method for compatibility
+                snapshot = {
+                    docs: [],
+                    size: 0,
+                    empty: true,
+                    forEach: () => {} // Empty forEach for compatibility with updatePledgeStatistics
+                };
+            }
+        } else {
+            console.log('[loadPledgesData] Campaign manager - querying pledges for email:', window.userEmail);
+            
+            const pledgesQuery = query(collection(window.db, 'pledges'), where('email', '==', window.userEmail));
+            
+            try {
+                snapshot = await getDocs(pledgesQuery);
+                console.log('[loadPledgesData] Query successful, found', snapshot.size, 'pledges for email:', window.userEmail);
 
-        try {
-            snapshot = await getDocs(pledgesQuery);
-            console.log('[loadPledgesData] Query successful, found', snapshot.size, 'pledges for email:', window.userEmail);
-
-            // If no results, try querying with campaignEmail field as fallback
-            if (snapshot.empty) {
-                console.log('[loadPledgesData] No pledges found with email field, trying campaignEmail field...');
-                const fallbackQuery = query(collection(window.db, 'pledges'), where('campaignEmail', '==', window.userEmail));
-                try {
-                    const fallbackSnapshot = await getDocs(fallbackQuery);
-                    console.log('[loadPledgesData] Fallback query found', fallbackSnapshot.size, 'pledges with campaignEmail field');
-                    if (!fallbackSnapshot.empty) {
-                        snapshot = fallbackSnapshot;
-                        console.log('[loadPledgesData] Using fallback query results');
+                // If no results, try querying with campaignEmail field as fallback
+                if (snapshot.empty) {
+                    console.log('[loadPledgesData] No pledges found with email field, trying campaignEmail field...');
+                    const fallbackQuery = query(collection(window.db, 'pledges'), where('campaignEmail', '==', window.userEmail));
+                    try {
+                        const fallbackSnapshot = await getDocs(fallbackQuery);
+                        console.log('[loadPledgesData] Fallback query found', fallbackSnapshot.size, 'pledges with campaignEmail field');
+                        if (!fallbackSnapshot.empty) {
+                            snapshot = fallbackSnapshot;
+                            console.log('[loadPledgesData] Using fallback query results');
+                        }
+                    } catch (fallbackError) {
+                        console.warn('[loadPledgesData] Fallback query failed:', fallbackError);
                     }
-                } catch (fallbackError) {
-                    console.warn('[loadPledgesData] Fallback query failed:', fallbackError);
                 }
+            } catch (queryError) {
+                console.error('[loadPledgesData] Error querying pledges:', queryError);
+                // If index missing, try alternative query or show helpful message
+                if (queryError.code === 'failed-precondition' && queryError.message.includes('index')) {
+                    throw new Error('Firestore index required. Please create the required index as shown in the browser console.');
+                }
+                throw queryError;
             }
-        } catch (queryError) {
-            console.error('[loadPledgesData] Error querying pledges:', queryError);
-            // If index missing, try alternative query or show helpful message
-            if (queryError.code === 'failed-precondition' && queryError.message.includes('index')) {
-                throw new Error('Firestore index required. Please create the required index as shown in the browser console.');
-            }
-            throw queryError;
+        }
+        
+        // Ensure snapshot is defined (should be set by either island user or campaign manager branch above)
+        if (!snapshot) {
+            // Create a snapshot-like object with forEach method for compatibility
+            snapshot = {
+                docs: [],
+                size: 0,
+                empty: true,
+                forEach: () => {} // Empty forEach for compatibility with updatePledgeStatistics
+            };
         }
 
         // Update statistics (initial load - real-time updates handled by listener)
@@ -8233,7 +8446,13 @@ async function loadAgentsData(forceRefresh = false) {
 
         (tbody, 30);
 
-        const agentsQuery = query(collection(window.db, 'agents'), where('email', '==', window.userEmail));
+        // For island users, query by island; for campaign managers, query by email
+        let agentsQuery;
+        if (window.isIslandUser && window.islandUserData && window.islandUserData.island) {
+            agentsQuery = query(collection(window.db, 'agents'), where('island', '==', window.islandUserData.island));
+        } else {
+            agentsQuery = query(collection(window.db, 'agents'), where('email', '==', window.userEmail));
+        }
         const snapshot = await getDocs(agentsQuery);
 
         (tbody, 50);
@@ -8263,9 +8482,17 @@ async function loadAgentsData(forceRefresh = false) {
             const statsPromise = (async () => {
                 try {
                     // Count assigned voters (with global filter applied)
-                    const votersQuery = query(collection(window.db, 'voters'),
-                        where('email', '==', window.userEmail),
-                        where('assignedAgentId', '==', agentDoc.id));
+                    // For island users, query by island; for campaign managers, query by email
+                    let votersQuery;
+                    if (window.isIslandUser && window.islandUserData && window.islandUserData.island) {
+                        votersQuery = query(collection(window.db, 'voters'),
+                            where('island', '==', window.islandUserData.island),
+                            where('assignedAgentId', '==', agentDoc.id));
+                    } else {
+                        votersQuery = query(collection(window.db, 'voters'),
+                            where('email', '==', window.userEmail),
+                            where('assignedAgentId', '==', agentDoc.id));
+                    }
                     const votersSnapshot = await getDocs(votersQuery);
 
                     // Apply global filter to voter count
@@ -8891,37 +9118,29 @@ async function loadAnalyticsData() {
         } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
 
         // Fetch all data in parallel for efficiency
+        // For island users, query by island; for campaign managers, query by email/campaignEmail
+        const isIslandUser = window.isIslandUser && window.islandUserData && window.islandUserData.island;
+        const island = isIslandUser ? window.islandUserData.island : null;
+        
         const [votersSnap, pledgesSnap, callsSnap, agentsSnap, eventsSnap, candidatesSnap] = await Promise.all([
-            getDocs(query(collection(window.db, 'voters'), where('email', '==', window.userEmail))).catch(() => ({
-                size: 0,
-                docs: [],
-                forEach: () => {}
-            })),
-            getDocs(query(collection(window.db, 'pledges'), where('email', '==', window.userEmail))).catch(() => ({
-                size: 0,
-                docs: [],
-                forEach: () => {}
-            })),
-            getDocs(query(collection(window.db, 'calls'), where('email', '==', window.userEmail))).catch(() => ({
-                size: 0,
-                docs: [],
-                forEach: () => {}
-            })),
-            getDocs(query(collection(window.db, 'agents'), where('email', '==', window.userEmail))).catch(() => ({
-                size: 0,
-                docs: [],
-                forEach: () => {}
-            })),
-            getDocs(query(collection(window.db, 'events'), where('email', '==', window.userEmail))).catch(() => ({
-                size: 0,
-                docs: [],
-                forEach: () => {}
-            })),
-            getDocs(query(collection(window.db, 'candidates'), where('email', '==', window.userEmail))).catch(() => ({
-                size: 0,
-                docs: [],
-                forEach: () => {}
-            }))
+            isIslandUser ? 
+                getDocs(query(collection(window.db, 'voters'), where('island', '==', island))).catch(() => ({ size: 0, docs: [], forEach: () => {} })) :
+                getDocs(query(collection(window.db, 'voters'), where('email', '==', window.userEmail))).catch(() => ({ size: 0, docs: [], forEach: () => {} })),
+            isIslandUser ? 
+                getDocs(query(collection(window.db, 'pledges'), where('island', '==', island))).catch(() => ({ size: 0, docs: [], forEach: () => {} })) :
+                getDocs(query(collection(window.db, 'pledges'), where('email', '==', window.userEmail))).catch(() => ({ size: 0, docs: [], forEach: () => {} })),
+            isIslandUser ? 
+                getDocs(query(collection(window.db, 'calls'), where('island', '==', island))).catch(() => ({ size: 0, docs: [], forEach: () => {} })) :
+                getDocs(query(collection(window.db, 'calls'), where('campaignEmail', '==', window.userEmail))).catch(() => ({ size: 0, docs: [], forEach: () => {} })),
+            isIslandUser ? 
+                getDocs(query(collection(window.db, 'agents'), where('island', '==', island))).catch(() => ({ size: 0, docs: [], forEach: () => {} })) :
+                getDocs(query(collection(window.db, 'agents'), where('email', '==', window.userEmail))).catch(() => ({ size: 0, docs: [], forEach: () => {} })),
+            isIslandUser ? 
+                getDocs(query(collection(window.db, 'events'), where('island', '==', island))).catch(() => ({ size: 0, docs: [], forEach: () => {} })) :
+                getDocs(query(collection(window.db, 'events'), where('campaignEmail', '==', window.userEmail))).catch(() => ({ size: 0, docs: [], forEach: () => {} })),
+            isIslandUser ? 
+                getDocs(query(collection(window.db, 'candidates'), where('island', '==', island))).catch(() => ({ size: 0, docs: [], forEach: () => {} })) :
+                getDocs(query(collection(window.db, 'candidates'), where('email', '==', window.userEmail))).catch(() => ({ size: 0, docs: [], forEach: () => {} }))
         ]);
 
         // Extract data
@@ -9532,7 +9751,14 @@ async function generateReport(type) {
         let headers = [];
 
         if (type === 'voter') {
-            const snapshot = await getDocs(query(collection(window.db, 'voters'), where('email', '==', window.userEmail)));
+            // For island users, query by island; for campaign managers, query by email
+            let votersQuery;
+            if (window.isIslandUser && window.islandUserData && window.islandUserData.island) {
+                votersQuery = query(collection(window.db, 'voters'), where('island', '==', window.islandUserData.island));
+            } else {
+                votersQuery = query(collection(window.db, 'voters'), where('email', '==', window.userEmail));
+            }
+            const snapshot = await getDocs(votersQuery);
             let votersData = snapshot.docs.map(doc => ({
                 id: doc.id,
                 ...doc.data()
@@ -9578,35 +9804,51 @@ async function generateReport(type) {
                 getDoc: getDocFn
             } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
 
-            // Try both email and campaignEmail queries
+            // For island users, query by island; for campaign managers, query by email/campaignEmail
             let callsData = [];
-            try {
-                const callsQuery1 = query(collection(window.db, 'calls'), where('campaignEmail', '==', window.userEmail));
-                const snapshot1 = await getDocs(callsQuery1);
-                snapshot1.forEach(doc => {
-                    callsData.push({
-                        id: doc.id,
-                        ...doc.data()
-                    });
-                });
-            } catch (e) {
-                console.warn('Error querying calls by campaignEmail:', e);
-            }
-
-            try {
-                const callsQuery2 = query(collection(window.db, 'calls'), where('email', '==', window.userEmail));
-                const snapshot2 = await getDocs(callsQuery2);
-                snapshot2.forEach(doc => {
-                    // Avoid duplicates
-                    if (!callsData.find(c => c.id === doc.id)) {
+            if (window.isIslandUser && window.islandUserData && window.islandUserData.island) {
+                try {
+                    const callsQuery = query(collection(window.db, 'calls'), where('island', '==', window.islandUserData.island));
+                    const snapshot = await getDocs(callsQuery);
+                    snapshot.forEach(doc => {
                         callsData.push({
                             id: doc.id,
                             ...doc.data()
                         });
-                    }
-                });
-            } catch (e) {
-                console.warn('Error querying calls by email:', e);
+                    });
+                } catch (e) {
+                    console.warn('Error querying calls by island:', e);
+                }
+            } else {
+                // Try both email and campaignEmail queries
+                try {
+                    const callsQuery1 = query(collection(window.db, 'calls'), where('campaignEmail', '==', window.userEmail));
+                    const snapshot1 = await getDocs(callsQuery1);
+                    snapshot1.forEach(doc => {
+                        callsData.push({
+                            id: doc.id,
+                            ...doc.data()
+                        });
+                    });
+                } catch (e) {
+                    console.warn('Error querying calls by campaignEmail:', e);
+                }
+
+                try {
+                    const callsQuery2 = query(collection(window.db, 'calls'), where('email', '==', window.userEmail));
+                    const snapshot2 = await getDocs(callsQuery2);
+                    snapshot2.forEach(doc => {
+                        // Avoid duplicates
+                        if (!callsData.find(c => c.id === doc.id)) {
+                            callsData.push({
+                                id: doc.id,
+                                ...doc.data()
+                            });
+                        }
+                    });
+                } catch (e) {
+                    console.warn('Error querying calls by email:', e);
+                }
             }
 
             // Apply global filter via voter data
@@ -9676,35 +9918,51 @@ async function generateReport(type) {
             });
             filename = `call-report-${Date.now()}.csv`;
         } else if (type === 'event') {
-            // Try both email and campaignEmail queries
+            // For island users, query by island; for campaign managers, query by email/campaignEmail
             let eventsData = [];
-            try {
-                const eventsQuery1 = query(collection(window.db, 'events'), where('campaignEmail', '==', window.userEmail));
-                const snapshot1 = await getDocs(eventsQuery1);
-                snapshot1.forEach(doc => {
-                    eventsData.push({
-                        id: doc.id,
-                        ...doc.data()
-                    });
-                });
-            } catch (e) {
-                console.warn('Error querying events by campaignEmail:', e);
-            }
-
-            try {
-                const eventsQuery2 = query(collection(window.db, 'events'), where('email', '==', window.userEmail));
-                const snapshot2 = await getDocs(eventsQuery2);
-                snapshot2.forEach(doc => {
-                    // Avoid duplicates
-                    if (!eventsData.find(e => e.id === doc.id)) {
+            if (window.isIslandUser && window.islandUserData && window.islandUserData.island) {
+                try {
+                    const eventsQuery = query(collection(window.db, 'events'), where('island', '==', window.islandUserData.island));
+                    const snapshot = await getDocs(eventsQuery);
+                    snapshot.forEach(doc => {
                         eventsData.push({
                             id: doc.id,
                             ...doc.data()
                         });
-                    }
-                });
-            } catch (e) {
-                console.warn('Error querying events by email:', e);
+                    });
+                } catch (e) {
+                    console.warn('Error querying events by island:', e);
+                }
+            } else {
+                // Try both email and campaignEmail queries
+                try {
+                    const eventsQuery1 = query(collection(window.db, 'events'), where('campaignEmail', '==', window.userEmail));
+                    const snapshot1 = await getDocs(eventsQuery1);
+                    snapshot1.forEach(doc => {
+                        eventsData.push({
+                            id: doc.id,
+                            ...doc.data()
+                        });
+                    });
+                } catch (e) {
+                    console.warn('Error querying events by campaignEmail:', e);
+                }
+
+                try {
+                    const eventsQuery2 = query(collection(window.db, 'events'), where('email', '==', window.userEmail));
+                    const snapshot2 = await getDocs(eventsQuery2);
+                    snapshot2.forEach(doc => {
+                        // Avoid duplicates
+                        if (!eventsData.find(e => e.id === doc.id)) {
+                            eventsData.push({
+                                id: doc.id,
+                                ...doc.data()
+                            });
+                        }
+                    });
+                } catch (e) {
+                    console.warn('Error querying events by email:', e);
+                }
             }
 
             // Note: Events don't have constituency/island fields directly, so no global filter applied
@@ -9728,7 +9986,14 @@ async function generateReport(type) {
                 getDoc: getDocFn,
                 doc: docFn
             } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
-            const pledgesSnapshot = await getDocs(query(collection(window.db, 'pledges'), where('email', '==', window.userEmail)));
+            // For island users, query by island; for campaign managers, query by email
+            let pledgesQuery;
+            if (window.isIslandUser && window.islandUserData && window.islandUserData.island) {
+                pledgesQuery = query(collection(window.db, 'pledges'), where('island', '==', window.islandUserData.island));
+            } else {
+                pledgesQuery = query(collection(window.db, 'pledges'), where('email', '==', window.userEmail));
+            }
+            const pledgesSnapshot = await getDocs(pledgesQuery);
             let pledgesData = pledgesSnapshot.docs.map(doc => ({
                 id: doc.id,
                 ...doc.data()
@@ -9824,27 +10089,26 @@ async function generateReport(type) {
                 getDoc: getDocFn
             } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
 
+            // For island users, query by island; for campaign managers, query by email/campaignEmail
+            const isIslandUser = window.isIslandUser && window.islandUserData && window.islandUserData.island;
+            const island = isIslandUser ? window.islandUserData.island : null;
+            
             const [votersSnap, pledgesSnap, callsSnap, eventsSnap, agentsSnap] = await Promise.all([
-                getDocs(query(collection(window.db, 'voters'), where('email', '==', window.userEmail))).catch(() => ({
-                    size: 0,
-                    docs: []
-                })),
-                getDocs(query(collection(window.db, 'pledges'), where('email', '==', window.userEmail))).catch(() => ({
-                    size: 0,
-                    docs: []
-                })),
-                getDocs(query(collection(window.db, 'calls'), where('email', '==', window.userEmail))).catch(() => ({
-                    size: 0,
-                    docs: []
-                })),
-                getDocs(query(collection(window.db, 'events'), where('email', '==', window.userEmail))).catch(() => ({
-                    size: 0,
-                    docs: []
-                })),
-                getDocs(query(collection(window.db, 'agents'), where('email', '==', window.userEmail))).catch(() => ({
-                    size: 0,
-                    docs: []
-                }))
+                isIslandUser ? 
+                    getDocs(query(collection(window.db, 'voters'), where('island', '==', island))).catch(() => ({ size: 0, docs: [] })) :
+                    getDocs(query(collection(window.db, 'voters'), where('email', '==', window.userEmail))).catch(() => ({ size: 0, docs: [] })),
+                isIslandUser ? 
+                    getDocs(query(collection(window.db, 'pledges'), where('island', '==', island))).catch(() => ({ size: 0, docs: [] })) :
+                    getDocs(query(collection(window.db, 'pledges'), where('email', '==', window.userEmail))).catch(() => ({ size: 0, docs: [] })),
+                isIslandUser ? 
+                    getDocs(query(collection(window.db, 'calls'), where('island', '==', island))).catch(() => ({ size: 0, docs: [] })) :
+                    getDocs(query(collection(window.db, 'calls'), where('campaignEmail', '==', window.userEmail))).catch(() => ({ size: 0, docs: [] })),
+                isIslandUser ? 
+                    getDocs(query(collection(window.db, 'events'), where('island', '==', island))).catch(() => ({ size: 0, docs: [] })) :
+                    getDocs(query(collection(window.db, 'events'), where('campaignEmail', '==', window.userEmail))).catch(() => ({ size: 0, docs: [] })),
+                isIslandUser ? 
+                    getDocs(query(collection(window.db, 'agents'), where('island', '==', island))).catch(() => ({ size: 0, docs: [] })) :
+                    getDocs(query(collection(window.db, 'agents'), where('email', '==', window.userEmail))).catch(() => ({ size: 0, docs: [] }))
             ]);
 
             // Apply global filter
@@ -10481,32 +10745,54 @@ async function loadBallotsData(forceRefresh = false, skipSkeleton = false) {
             getDocs
         } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
 
-        // Try querying with email first, fallback to campaignEmail if needed
+        // For island users, query by island; for campaign managers, query by email/campaignEmail
         let snapshot;
-        try {
-            const ballotsQuery = query(
-                collection(window.db, 'ballots'),
-                where('email', '==', window.userEmail),
-                orderBy('ballotNumber', 'asc')
-            );
-            snapshot = await getDocs(ballotsQuery);
-        } catch (emailError) {
-            console.warn('[Ballots] Query by email failed, trying campaignEmail:', emailError);
+        if (window.isIslandUser && window.islandUserData && window.islandUserData.island) {
+            // Island users query by island
             try {
-                const campaignBallotsQuery = query(
+                const ballotsQuery = query(
                     collection(window.db, 'ballots'),
-                    where('campaignEmail', '==', window.userEmail),
+                    where('island', '==', window.islandUserData.island),
                     orderBy('ballotNumber', 'asc')
                 );
-                snapshot = await getDocs(campaignBallotsQuery);
-            } catch (campaignError) {
-                console.warn('[Ballots] Query by campaignEmail failed, trying without orderBy:', campaignError);
+                snapshot = await getDocs(ballotsQuery);
+                console.log('[Ballots] Island user - queried by island:', window.islandUserData.island);
+            } catch (orderByError) {
+                console.warn('[Ballots] Query by island with orderBy failed, trying without orderBy:', orderByError);
                 // Fallback: query without orderBy
                 const simpleQuery = query(
                     collection(window.db, 'ballots'),
-                    where('email', '==', window.userEmail)
+                    where('island', '==', window.islandUserData.island)
                 );
                 snapshot = await getDocs(simpleQuery);
+            }
+        } else {
+            // Campaign managers query by email/campaignEmail
+            try {
+                const ballotsQuery = query(
+                    collection(window.db, 'ballots'),
+                    where('email', '==', window.userEmail),
+                    orderBy('ballotNumber', 'asc')
+                );
+                snapshot = await getDocs(ballotsQuery);
+            } catch (emailError) {
+                console.warn('[Ballots] Query by email failed, trying campaignEmail:', emailError);
+                try {
+                    const campaignBallotsQuery = query(
+                        collection(window.db, 'ballots'),
+                        where('campaignEmail', '==', window.userEmail),
+                        orderBy('ballotNumber', 'asc')
+                    );
+                    snapshot = await getDocs(campaignBallotsQuery);
+                } catch (campaignError) {
+                    console.warn('[Ballots] Query by campaignEmail failed, trying without orderBy:', campaignError);
+                    // Fallback: query without orderBy
+                    const simpleQuery = query(
+                        collection(window.db, 'ballots'),
+                        where('email', '==', window.userEmail)
+                    );
+                    snapshot = await getDocs(simpleQuery);
+                }
             }
         }
 
@@ -10821,34 +11107,68 @@ async function loadTransportationByType(type, forceRefresh = false, skipSkeleton
                     getDocs
                 } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
 
-                // Try query with orderBy first
+                // For island users, query by island; for campaign managers, query by email/campaignEmail
                 let snapshot;
-                try {
-                    const transportQuery = query(
-                        collection(window.db, 'transportation'),
-                        where('email', '==', window.userEmail),
-                        where('type', '==', type),
-                        orderBy('departureTime', 'asc')
-                    );
-                    snapshot = await getDocs(transportQuery);
-                } catch (orderByError) {
-                    // If orderBy fails (e.g., missing index), try without orderBy
-                    console.warn(`[Transportation ${type}] Query with orderBy failed, trying without orderBy:`, orderByError);
+                if (window.isIslandUser && window.islandUserData && window.islandUserData.island) {
+                    // Island users query by island
                     try {
-                        const transportQueryNoOrder = query(
+                        const transportQuery = query(
+                            collection(window.db, 'transportation'),
+                            where('island', '==', window.islandUserData.island),
+                            where('type', '==', type),
+                            orderBy('departureTime', 'asc')
+                        );
+                        snapshot = await getDocs(transportQuery);
+                        console.log(`[Transportation ${type}] Island user - queried by island:`, window.islandUserData.island);
+                    } catch (orderByError) {
+                        // If orderBy fails (e.g., missing index), try without orderBy
+                        console.warn(`[Transportation ${type}] Query by island with orderBy failed, trying without orderBy:`, orderByError);
+                        try {
+                            const transportQueryNoOrder = query(
+                                collection(window.db, 'transportation'),
+                                where('island', '==', window.islandUserData.island),
+                                where('type', '==', type)
+                            );
+                            snapshot = await getDocs(transportQueryNoOrder);
+                        } catch (queryError) {
+                            // If that also fails, try with just island
+                            console.warn(`[Transportation ${type}] Query with type filter failed, trying with island only:`, queryError);
+                            const transportQueryIslandOnly = query(
+                                collection(window.db, 'transportation'),
+                                where('island', '==', window.islandUserData.island)
+                            );
+                            snapshot = await getDocs(transportQueryIslandOnly);
+                        }
+                    }
+                } else {
+                    // Campaign managers query by email/campaignEmail
+                    try {
+                        const transportQuery = query(
                             collection(window.db, 'transportation'),
                             where('email', '==', window.userEmail),
-                            where('type', '==', type)
+                            where('type', '==', type),
+                            orderBy('departureTime', 'asc')
                         );
-                        snapshot = await getDocs(transportQueryNoOrder);
-                    } catch (queryError) {
-                        // If that also fails, try with just email
-                        console.warn(`[Transportation ${type}] Query with type filter failed, trying with email only:`, queryError);
-                        const transportQueryEmailOnly = query(
-                            collection(window.db, 'transportation'),
-                            where('email', '==', window.userEmail)
-                        );
-                        snapshot = await getDocs(transportQueryEmailOnly);
+                        snapshot = await getDocs(transportQuery);
+                    } catch (orderByError) {
+                        // If orderBy fails (e.g., missing index), try without orderBy
+                        console.warn(`[Transportation ${type}] Query with orderBy failed, trying without orderBy:`, orderByError);
+                        try {
+                            const transportQueryNoOrder = query(
+                                collection(window.db, 'transportation'),
+                                where('email', '==', window.userEmail),
+                                where('type', '==', type)
+                            );
+                            snapshot = await getDocs(transportQueryNoOrder);
+                        } catch (queryError) {
+                            // If that also fails, try with just email
+                            console.warn(`[Transportation ${type}] Query with type filter failed, trying with email only:`, queryError);
+                            const transportQueryEmailOnly = query(
+                                collection(window.db, 'transportation'),
+                                where('email', '==', window.userEmail)
+                            );
+                            snapshot = await getDocs(transportQueryEmailOnly);
+                        }
                     }
                 }
 
@@ -11952,37 +12272,63 @@ async function loadAllBallotsStatistics(forceRefresh = false) {
         let ballots = [];
         let ballotsSnapshot;
 
-        // Try querying by 'email' field first
-        try {
-            const ballotsQuery = query(
-                collection(window.db, 'ballots'),
-                where('email', '==', window.userEmail),
-                orderBy('ballotNumber', 'asc')
-            );
-            ballotsSnapshot = await getDocs(ballotsQuery);
-            ballotsSnapshot.docs.forEach(doc => {
-                const ballotData = doc.data();
-                if (ballotData.email === window.userEmail || ballotData.campaignEmail === window.userEmail) {
+        // For island users, query by island; for campaign managers, query by email/campaignEmail
+        if (window.isIslandUser && window.islandUserData && window.islandUserData.island) {
+            // Island users query by island
+            try {
+                const ballotsQuery = query(
+                    collection(window.db, 'ballots'),
+                    where('island', '==', window.islandUserData.island),
+                    orderBy('ballotNumber', 'asc')
+                );
+                ballotsSnapshot = await getDocs(ballotsQuery);
+                ballotsSnapshot.docs.forEach(doc => {
+                    const ballotData = doc.data();
                     ballots.push({
                         id: doc.id,
                         ...ballotData
                     });
+                });
+                console.log(`[loadAllBallotsStatistics] Island user - Query by 'island' returned ${ballots.length} ballots`);
+            } catch (orderByError) {
+                console.warn('[loadAllBallotsStatistics] Query by island with orderBy failed, trying without orderBy:', orderByError);
+                try {
+                    const simpleQuery = query(
+                        collection(window.db, 'ballots'),
+                        where('island', '==', window.islandUserData.island)
+                    );
+                    ballotsSnapshot = await getDocs(simpleQuery);
+                    ballotsSnapshot.docs.forEach(doc => {
+                        const ballotData = doc.data();
+                        ballots.push({
+                            id: doc.id,
+                            ...ballotData
+                        });
+                    });
+                    // Sort client-side
+                    ballots.sort((a, b) => {
+                        const aNum = a.ballotNumber || '';
+                        const bNum = b.ballotNumber || '';
+                        return aNum.localeCompare(bNum, undefined, {
+                            numeric: true,
+                            sensitivity: 'base'
+                        });
+                    });
+                    console.log(`[loadAllBallotsStatistics] Island user - Query without orderBy returned ${ballots.length} ballots`);
+                } catch (simpleError) {
+                    console.warn('[loadAllBallotsStatistics] Island user - Simple query failed:', simpleError);
                 }
-            });
-            console.log(`[loadAllBallotsStatistics] Query by 'email' returned ${ballots.length} ballots`);
-        } catch (emailError) {
-            console.warn('[loadAllBallotsStatistics] Query by email failed:', emailError);
-        }
-
-        // If no results, try querying by 'campaignEmail' field
-        if (ballots.length === 0) {
+            }
+        } else {
+            // Campaign managers query by email/campaignEmail
+            // Try querying by 'email' field first
             try {
-                const campaignBallotsQuery = query(
+                const ballotsQuery = query(
                     collection(window.db, 'ballots'),
-                    where('campaignEmail', '==', window.userEmail),
+                    where('email', '==', window.userEmail),
                     orderBy('ballotNumber', 'asc')
                 );
-                ballotsSnapshot = await getDocs(campaignBallotsQuery);
+                ballotsSnapshot = await getDocs(ballotsQuery);
                 ballotsSnapshot.docs.forEach(doc => {
                     const ballotData = doc.data();
                     if (ballotData.email === window.userEmail || ballotData.campaignEmail === window.userEmail) {
@@ -11992,41 +12338,65 @@ async function loadAllBallotsStatistics(forceRefresh = false) {
                         });
                     }
                 });
-                console.log(`[loadAllBallotsStatistics] Query by 'campaignEmail' returned ${ballots.length} ballots`);
-            } catch (campaignError) {
-                console.warn('[loadAllBallotsStatistics] Query by campaignEmail failed:', campaignError);
+                console.log(`[loadAllBallotsStatistics] Query by 'email' returned ${ballots.length} ballots`);
+            } catch (emailError) {
+                console.warn('[loadAllBallotsStatistics] Query by email failed:', emailError);
             }
-        }
 
-        // If still no results, try without orderBy (in case orderBy field doesn't exist)
-        if (ballots.length === 0) {
-            try {
-                const simpleQuery = query(
-                    collection(window.db, 'ballots'),
-                    where('email', '==', window.userEmail)
-                );
-                ballotsSnapshot = await getDocs(simpleQuery);
-                ballotsSnapshot.docs.forEach(doc => {
-                    const ballotData = doc.data();
-                    if (ballotData.email === window.userEmail || ballotData.campaignEmail === window.userEmail) {
-                        ballots.push({
-                            id: doc.id,
-                            ...ballotData
-                        });
-                    }
-                });
-                // Sort client-side
-                ballots.sort((a, b) => {
-                    const aNum = a.ballotNumber || '';
-                    const bNum = b.ballotNumber || '';
-                    return aNum.localeCompare(bNum, undefined, {
-                        numeric: true,
-                        sensitivity: 'base'
+            // If no results, try querying by 'campaignEmail' field
+            if (ballots.length === 0) {
+                try {
+                    const campaignBallotsQuery = query(
+                        collection(window.db, 'ballots'),
+                        where('campaignEmail', '==', window.userEmail),
+                        orderBy('ballotNumber', 'asc')
+                    );
+                    ballotsSnapshot = await getDocs(campaignBallotsQuery);
+                    ballotsSnapshot.docs.forEach(doc => {
+                        const ballotData = doc.data();
+                        if (ballotData.email === window.userEmail || ballotData.campaignEmail === window.userEmail) {
+                            ballots.push({
+                                id: doc.id,
+                                ...ballotData
+                            });
+                        }
                     });
-                });
-                console.log(`[loadAllBallotsStatistics] Query without orderBy returned ${ballots.length} ballots`);
-            } catch (simpleError) {
-                console.warn('[loadAllBallotsStatistics] Simple query failed:', simpleError);
+                    console.log(`[loadAllBallotsStatistics] Query by 'campaignEmail' returned ${ballots.length} ballots`);
+                } catch (campaignError) {
+                    console.warn('[loadAllBallotsStatistics] Query by campaignEmail failed:', campaignError);
+                }
+            }
+
+            // If still no results, try without orderBy (in case orderBy field doesn't exist)
+            if (ballots.length === 0) {
+                try {
+                    const simpleQuery = query(
+                        collection(window.db, 'ballots'),
+                        where('email', '==', window.userEmail)
+                    );
+                    ballotsSnapshot = await getDocs(simpleQuery);
+                    ballotsSnapshot.docs.forEach(doc => {
+                        const ballotData = doc.data();
+                        if (ballotData.email === window.userEmail || ballotData.campaignEmail === window.userEmail) {
+                            ballots.push({
+                                id: doc.id,
+                                ...ballotData
+                            });
+                        }
+                    });
+                    // Sort client-side
+                    ballots.sort((a, b) => {
+                        const aNum = a.ballotNumber || '';
+                        const bNum = b.ballotNumber || '';
+                        return aNum.localeCompare(bNum, undefined, {
+                            numeric: true,
+                            sensitivity: 'base'
+                        });
+                    });
+                    console.log(`[loadAllBallotsStatistics] Query without orderBy returned ${ballots.length} ballots`);
+                } catch (simpleError) {
+                    console.warn('[loadAllBallotsStatistics] Simple query failed:', simpleError);
+                }
             }
         }
 
@@ -12104,20 +12474,24 @@ async function calculateBallotStatistics(ballotId, ballotNumber) {
         } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
 
         // Fetch voters assigned to this ballot
-        // Try querying by 'email' field first with 'ballot' field
+        // For island users, query by island and ballot; for campaign managers, query by email/campaignEmail and ballot
         let votersSnapshot;
         let voters = [];
+        
+        const isIslandUser = window.isIslandUser && window.islandUserData && window.islandUserData.island;
+        const island = isIslandUser ? window.islandUserData.island : null;
 
-        try {
-            const votersQuery = query(
-                collection(window.db, 'voters'),
-                where('email', '==', window.userEmail),
-                where('ballot', '==', ballotNumber)
-            );
-            votersSnapshot = await getDocs(votersQuery);
-            votersSnapshot.docs.forEach(doc => {
-                const voterData = doc.data();
-                if (voterData.email === window.userEmail || voterData.campaignEmail === window.userEmail) {
+        if (isIslandUser) {
+            // Island users query by island and ballot
+            try {
+                const votersQuery = query(
+                    collection(window.db, 'voters'),
+                    where('island', '==', island),
+                    where('ballot', '==', ballotNumber)
+                );
+                votersSnapshot = await getDocs(votersQuery);
+                votersSnapshot.docs.forEach(doc => {
+                    const voterData = doc.data();
                     voters.push({
                         id: doc.id,
                         name: voterData.name || 'N/A',
@@ -12128,25 +12502,20 @@ async function calculateBallotStatistics(ballotId, ballotNumber) {
                         votedAt: voterData.votedAt || null,
                         pledge: voterData.pledge || null
                     });
-                }
-            });
-            console.log(`[calculateBallotStatistics] Query by 'email' + 'ballot' returned ${voters.length} voters`);
-        } catch (emailError) {
-            console.warn('[calculateBallotStatistics] Query by email + ballot failed:', emailError);
-        }
-
-        // If no results, try querying by 'campaignEmail' field
-        if (voters.length === 0) {
-            try {
-                const campaignVotersQuery = query(
-                    collection(window.db, 'voters'),
-                    where('campaignEmail', '==', window.userEmail),
-                    where('ballot', '==', ballotNumber)
-                );
-                const campaignSnapshot = await getDocs(campaignVotersQuery);
-                campaignSnapshot.docs.forEach(doc => {
-                    const voterData = doc.data();
-                    if (voterData.email === window.userEmail || voterData.campaignEmail === window.userEmail) {
+                });
+                console.log(`[calculateBallotStatistics] Island user - Query by 'island' + 'ballot' returned ${voters.length} voters`);
+            } catch (islandError) {
+                console.warn('[calculateBallotStatistics] Island user - Query by island + ballot failed:', islandError);
+                // Fallback: try with ballotBox field
+                try {
+                    const ballotBoxQuery = query(
+                        collection(window.db, 'voters'),
+                        where('island', '==', island),
+                        where('ballotBox', '==', ballotNumber)
+                    );
+                    const ballotBoxSnapshot = await getDocs(ballotBoxQuery);
+                    ballotBoxSnapshot.docs.forEach(doc => {
+                        const voterData = doc.data();
                         voters.push({
                             id: doc.id,
                             name: voterData.name || 'N/A',
@@ -12157,24 +12526,22 @@ async function calculateBallotStatistics(ballotId, ballotNumber) {
                             votedAt: voterData.votedAt || null,
                             pledge: voterData.pledge || null
                         });
-                    }
-                });
-                console.log(`[calculateBallotStatistics] Query by 'campaignEmail' + 'ballot' returned ${voters.length} voters`);
-            } catch (campaignError) {
-                console.warn('[calculateBallotStatistics] Query by campaignEmail + ballot failed:', campaignError);
+                    });
+                    console.log(`[calculateBallotStatistics] Island user - Query by 'island' + 'ballotBox' returned ${voters.length} voters`);
+                } catch (ballotBoxError) {
+                    console.warn('[calculateBallotStatistics] Island user - Query by island + ballotBox failed:', ballotBoxError);
+                }
             }
-        }
-
-        // If still no results, try querying by 'ballotBox' field instead of 'ballot'
-        if (voters.length === 0) {
+        } else {
+            // Campaign managers query by email/campaignEmail and ballot
             try {
-                const ballotBoxQuery = query(
+                const votersQuery = query(
                     collection(window.db, 'voters'),
                     where('email', '==', window.userEmail),
-                    where('ballotBox', '==', ballotNumber)
+                    where('ballot', '==', ballotNumber)
                 );
-                const ballotBoxSnapshot = await getDocs(ballotBoxQuery);
-                ballotBoxSnapshot.docs.forEach(doc => {
+                votersSnapshot = await getDocs(votersQuery);
+                votersSnapshot.docs.forEach(doc => {
                     const voterData = doc.data();
                     if (voterData.email === window.userEmail || voterData.campaignEmail === window.userEmail) {
                         voters.push({
@@ -12189,9 +12556,69 @@ async function calculateBallotStatistics(ballotId, ballotNumber) {
                         });
                     }
                 });
-                console.log(`[calculateBallotStatistics] Query by 'email' + 'ballotBox' returned ${voters.length} voters`);
-            } catch (ballotBoxError) {
-                console.warn('[calculateBallotStatistics] Query by email + ballotBox failed:', ballotBoxError);
+                console.log(`[calculateBallotStatistics] Query by 'email' + 'ballot' returned ${voters.length} voters`);
+            } catch (emailError) {
+                console.warn('[calculateBallotStatistics] Query by email + ballot failed:', emailError);
+            }
+
+            // If no results, try querying by 'campaignEmail' field
+            if (voters.length === 0) {
+                try {
+                    const campaignVotersQuery = query(
+                        collection(window.db, 'voters'),
+                        where('campaignEmail', '==', window.userEmail),
+                        where('ballot', '==', ballotNumber)
+                    );
+                    const campaignSnapshot = await getDocs(campaignVotersQuery);
+                    campaignSnapshot.docs.forEach(doc => {
+                        const voterData = doc.data();
+                        if (voterData.email === window.userEmail || voterData.campaignEmail === window.userEmail) {
+                            voters.push({
+                                id: doc.id,
+                                name: voterData.name || 'N/A',
+                                idNumber: voterData.idNumber || voterData.voterId || 'N/A',
+                                permanentAddress: voterData.permanentAddress || voterData.address || 'N/A',
+                                agentName: voterData.agentName || 'N/A',
+                                voted: voterData.voted || false,
+                                votedAt: voterData.votedAt || null,
+                                pledge: voterData.pledge || null
+                            });
+                        }
+                    });
+                    console.log(`[calculateBallotStatistics] Query by 'campaignEmail' + 'ballot' returned ${voters.length} voters`);
+                } catch (campaignError) {
+                    console.warn('[calculateBallotStatistics] Query by campaignEmail + ballot failed:', campaignError);
+                }
+            }
+
+            // If still no results, try querying by 'ballotBox' field instead of 'ballot'
+            if (voters.length === 0) {
+                try {
+                    const ballotBoxQuery = query(
+                        collection(window.db, 'voters'),
+                        where('email', '==', window.userEmail),
+                        where('ballotBox', '==', ballotNumber)
+                    );
+                    const ballotBoxSnapshot = await getDocs(ballotBoxQuery);
+                    ballotBoxSnapshot.docs.forEach(doc => {
+                        const voterData = doc.data();
+                        if (voterData.email === window.userEmail || voterData.campaignEmail === window.userEmail) {
+                            voters.push({
+                                id: doc.id,
+                                name: voterData.name || 'N/A',
+                                idNumber: voterData.idNumber || voterData.voterId || 'N/A',
+                                permanentAddress: voterData.permanentAddress || voterData.address || 'N/A',
+                                agentName: voterData.agentName || 'N/A',
+                                voted: voterData.voted || false,
+                                votedAt: voterData.votedAt || null,
+                                pledge: voterData.pledge || null
+                            });
+                        }
+                    });
+                    console.log(`[calculateBallotStatistics] Query by 'email' + 'ballotBox' returned ${voters.length} voters`);
+                } catch (ballotBoxError) {
+                    console.warn('[calculateBallotStatistics] Query by email + ballotBox failed:', ballotBoxError);
+                }
             }
         }
 
@@ -12199,31 +12626,46 @@ async function calculateBallotStatistics(ballotId, ballotNumber) {
         if (voters.length === 0) {
             console.log('[calculateBallotStatistics] No results from queries, trying fallback: loading all voters and filtering client-side');
             try {
-                // Query by email first
-                let allVotersQuery = query(
-                    collection(window.db, 'voters'),
-                    where('email', '==', window.userEmail)
-                );
-                let allSnapshot = await getDocs(allVotersQuery);
-
-                // If no results, try campaignEmail
-                if (allSnapshot.docs.length === 0) {
-                    allVotersQuery = query(
+                let allSnapshot;
+                if (isIslandUser) {
+                    // Island users query by island
+                    const allVotersQuery = query(
                         collection(window.db, 'voters'),
-                        where('campaignEmail', '==', window.userEmail)
+                        where('island', '==', island)
                     );
                     allSnapshot = await getDocs(allVotersQuery);
+                } else {
+                    // Campaign managers query by email first
+                    let allVotersQuery = query(
+                        collection(window.db, 'voters'),
+                        where('email', '==', window.userEmail)
+                    );
+                    allSnapshot = await getDocs(allVotersQuery);
+
+                    // If no results, try campaignEmail
+                    if (allSnapshot.docs.length === 0) {
+                        allVotersQuery = query(
+                            collection(window.db, 'voters'),
+                            where('campaignEmail', '==', window.userEmail)
+                        );
+                        allSnapshot = await getDocs(allVotersQuery);
+                    }
                 }
 
                 // Filter client-side by ballot number (check both 'ballot' and 'ballotBox' fields)
                 allSnapshot.docs.forEach(doc => {
                     const voterData = doc.data();
-                    const matchesEmail = voterData.email === window.userEmail || voterData.campaignEmail === window.userEmail;
+                    let matchesUser;
+                    if (isIslandUser) {
+                        matchesUser = voterData.island === island;
+                    } else {
+                        matchesUser = voterData.email === window.userEmail || voterData.campaignEmail === window.userEmail;
+                    }
                     const matchesBallot = voterData.ballot === ballotNumber ||
                         voterData.ballotBox === ballotNumber ||
                         voterData.ballotNumber === ballotNumber;
 
-                    if (matchesEmail && matchesBallot) {
+                    if (matchesUser && matchesBallot) {
                         voters.push({
                             id: doc.id,
                             name: voterData.name || 'N/A',
@@ -12811,8 +13253,21 @@ window.generateTransportationLink = async (transportId, type, transportNumber) =
             serverTimestamp
         } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
 
-        // Check if link already exists in campaign settings
-        const campaignRef = doc(window.db, 'clients', window.userEmail);
+        // For island users, use campaign manager's email; for campaign managers, use their own email
+        // This ensures the link queries match the campaignEmail field in transportation records
+        let linkEmail = window.userEmail;
+        let campaignEmailForLink = window.userEmail;
+        
+        if (window.isIslandUser && window.islandUserData && window.islandUserData.campaignEmail) {
+            // Island users: use campaign manager's email for the link
+            // But store the token under the campaign manager's account so the link works
+            campaignEmailForLink = window.islandUserData.campaignEmail;
+            linkEmail = window.islandUserData.campaignEmail; // Use campaign manager's email in link
+            console.log('[generateTransportationLink] Island user - using campaign manager email for link:', linkEmail);
+        }
+
+        // Check if link already exists in campaign settings (use campaign manager's account for island users)
+        const campaignRef = doc(window.db, 'clients', linkEmail);
         const campaignSnap = await getDoc(campaignRef);
 
         let token, tempPassword, shareLink;
@@ -12825,9 +13280,9 @@ window.generateTransportationLink = async (transportId, type, transportNumber) =
                 token = campaignData.transportationShareToken;
                 tempPassword = campaignData.transportationCoordinatorPassword;
 
-                // Generate the shareable link
+                // Generate the shareable link (use campaign manager's email for island users)
                 const baseUrl = window.location.origin + window.location.pathname;
-                shareLink = `${baseUrl}?transport=${window.userEmail}&token=${token}`;
+                shareLink = `${baseUrl}?transport=${linkEmail}&token=${token}`;
 
                 // Show existing link
                 showTransportationLinkModal('All Transportation Types', 'All Flights, Speed Boats & Taxis', shareLink, tempPassword, true);
@@ -12839,7 +13294,7 @@ window.generateTransportationLink = async (transportId, type, transportNumber) =
         token = 'transport_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
         tempPassword = Math.floor(100000 + Math.random() * 900000).toString();
 
-        // Store in campaign settings for coordinator access to ALL transportations
+        // Store in campaign settings for coordinator access to ALL transportations (use campaign manager's account)
         if (campaignSnap.exists()) {
             await updateDoc(campaignRef, {
                 transportationCoordinatorPassword: tempPassword,
@@ -12855,13 +13310,13 @@ window.generateTransportationLink = async (transportId, type, transportNumber) =
                 transportationCoordinatorPassword: tempPassword,
                 transportationShareToken: token,
                 transportationLinkGeneratedAt: serverTimestamp(),
-                email: window.userEmail
+                email: linkEmail
             });
         }
 
-        // Generate the shareable link (shows all transportations)
+        // Generate the shareable link (use campaign manager's email for island users)
         const baseUrl = window.location.origin + window.location.pathname;
-        shareLink = `${baseUrl}?transport=${window.userEmail}&token=${token}`;
+        shareLink = `${baseUrl}?transport=${linkEmail}&token=${token}`;
 
         // Show modal with shareable link and password
         showTransportationLinkModal('All Transportation Types', 'All Flights, Speed Boats & Taxis', shareLink, tempPassword, false);
@@ -14464,11 +14919,13 @@ async function viewVoterDetails(voterId, voterData = null) {
             console.log('[viewVoterDetails] Loaded voter:', voterId, 'from', data ? 'cache' : 'Firebase');
         }
 
-        // Verify the voter belongs to the current user's campaign (unless admin or no email fields set)
+        // Verify the voter belongs to the current user's campaign or island
         const isAdmin = window.userEmail === 'rixaski@gmail.com';
         const hasEmailFields = data.email || data.campaignEmail;
+        const emailMatches = data.email === window.userEmail || data.campaignEmail === window.userEmail;
+        const islandMatches = window.isIslandUser && window.islandUserData && data.island === window.islandUserData.island;
 
-        if (!isAdmin && hasEmailFields && data.email !== window.userEmail && data.campaignEmail !== window.userEmail) {
+        if (!isAdmin && hasEmailFields && !emailMatches && !islandMatches) {
             if (window.showErrorDialog) {
                 window.showErrorDialog('You do not have permission to view this voter.', 'Access Denied');
             }
@@ -15378,18 +15835,19 @@ async function fetchVoterPledges(voterId, idNumber) {
         const {
             collection,
             query,
-            where,
             getDocs
         } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
-        const pledgesQuery = query(
-            collection(window.db, 'pledges'),
-            where('email', '==', window.userEmail)
-        );
+        // Query all pledges (not filtered by email/campaignEmail) to show records from all campaigns
+        const pledgesQuery = query(collection(window.db, 'pledges'));
         const snapshot = await getDocs(pledgesQuery);
         const voterPledges = [];
         snapshot.forEach(doc => {
             const pledgeData = doc.data();
-            if (pledgeData.voterId === voterId || pledgeData.idNumber === idNumber || pledgeData.voterId === idNumber) {
+            // Match by voterDocumentId, voterId, or idNumber to find all related pledges regardless of campaign
+            if (pledgeData.voterDocumentId === voterId || 
+                pledgeData.voterId === voterId || 
+                pledgeData.idNumber === idNumber || 
+                pledgeData.voterId === idNumber) {
                 voterPledges.push({
                     id: doc.id,
                     ...pledgeData
@@ -15410,24 +15868,16 @@ async function fetchVoterCalls(voterId, idNumber) {
         const {
             collection,
             query,
-            where,
-            or,
             getDocs
         } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
 
-        // Query for calls with either email or campaignEmail matching userEmail
-        const callsQuery = query(
-            collection(window.db, 'calls'),
-            or(
-                where('email', '==', window.userEmail),
-                where('campaignEmail', '==', window.userEmail)
-            )
-        );
+        // Query all calls (not filtered by email/campaignEmail) to show records from all campaigns
+        const callsQuery = query(collection(window.db, 'calls'));
         const snapshot = await getDocs(callsQuery);
         const voterCalls = [];
         snapshot.forEach(doc => {
             const callData = doc.data();
-            // Match by voterDocumentId (primary), voterId, or idNumber
+            // Match by voterDocumentId (primary), voterId, or idNumber to find all related calls regardless of campaign
             const matchesVoter =
                 callData.voterDocumentId === voterId ||
                 callData.voterId === voterId ||
@@ -15451,69 +15901,7 @@ async function fetchVoterCalls(voterId, idNumber) {
         return voterCalls;
     } catch (error) {
         console.error('Error fetching voter calls:', error);
-        // Fallback: try querying without or() if it fails (older Firebase versions)
-        try {
-            const {
-                collection,
-                query,
-                where,
-                getDocs
-            } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
-            const callsQuery = query(
-                collection(window.db, 'calls'),
-                where('email', '==', window.userEmail)
-            );
-            const snapshot = await getDocs(callsQuery);
-            const voterCalls = [];
-            snapshot.forEach(doc => {
-                const callData = doc.data();
-                const matchesVoter =
-                    callData.voterDocumentId === voterId ||
-                    callData.voterId === voterId ||
-                    callData.idNumber === idNumber ||
-                    callData.voterId === idNumber ||
-                    callData.voterDocumentId === idNumber;
-
-                if (matchesVoter) {
-                    voterCalls.push({
-                        id: doc.id,
-                        ...callData
-                    });
-                }
-            });
-            // Also try campaignEmail query
-            const campaignEmailQuery = query(
-                collection(window.db, 'calls'),
-                where('campaignEmail', '==', window.userEmail)
-            );
-            const campaignSnapshot = await getDocs(campaignEmailQuery);
-            campaignSnapshot.forEach(doc => {
-                const callData = doc.data();
-                const matchesVoter =
-                    callData.voterDocumentId === voterId ||
-                    callData.voterId === voterId ||
-                    callData.idNumber === idNumber ||
-                    callData.voterId === idNumber ||
-                    callData.voterDocumentId === idNumber;
-
-                if (matchesVoter && !voterCalls.find(c => c.id === doc.id)) {
-                    voterCalls.push({
-                        id: doc.id,
-                        ...callData
-                    });
-                }
-            });
-            // Sort by callDate descending
-            voterCalls.sort((a, b) => {
-                const dateA = a.callDate.toDate ? a.callDate.toDate() : (a.date.toDate ? a.date.toDate() : (a.date ? new Date(a.date) : new Date(0)));
-                const dateB = b.callDate.toDate ? b.callDate.toDate() : (b.date.toDate ? b.date.toDate() : (b.date ? new Date(b.date) : new Date(0)));
-                return dateB - dateA;
-            });
-            return voterCalls;
-        } catch (fallbackError) {
-            console.error('Error in fallback query:', fallbackError);
-            return [];
-        }
+        return [];
     }
 }
 
@@ -15524,18 +15912,16 @@ async function fetchVoterEvents(voterId, idNumber) {
         const {
             collection,
             query,
-            where,
             getDocs
         } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
-        const eventsQuery = query(
-            collection(window.db, 'events'),
-            where('email', '==', window.userEmail)
-        );
+        // Query all events (not filtered by email/campaignEmail) to show records from all campaigns
+        const eventsQuery = query(collection(window.db, 'events'));
         const snapshot = await getDocs(eventsQuery);
         const voterEvents = [];
         snapshot.forEach(doc => {
             const eventData = doc.data();
             const attendees = eventData.attendees || [];
+            // Match by voterId or idNumber in attendees to find all related events regardless of campaign
             if (attendees.some(a => a.voterId === voterId || a.idNumber === idNumber || a.voterId === idNumber)) {
                 voterEvents.push({
                     id: doc.id,
@@ -15557,18 +15943,16 @@ async function fetchVoterAssignments(voterId, idNumber) {
         const {
             collection,
             query,
-            where,
             getDocs
         } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
-        const agentsQuery = query(
-            collection(window.db, 'agents'),
-            where('email', '==', window.userEmail)
-        );
+        // Query all agents (not filtered by email) to show assignments from all campaigns
+        const agentsQuery = query(collection(window.db, 'agents'));
         const snapshot = await getDocs(agentsQuery);
         const assignments = [];
         snapshot.forEach(doc => {
             const agentData = doc.data();
             const assignedVoters = agentData.assignedVoters || [];
+            // Match by voterId or idNumber in assignedVoters to find all related assignments regardless of campaign
             const assignment = assignedVoters.find(v => v.voterId === voterId || v.idNumber === idNumber || v.voterId === idNumber);
             if (assignment) {
                 assignments.push({
@@ -16694,9 +17078,46 @@ async function viewPledgeDetails(pledgeId, navigateDirection = null) {
             getDoc
         } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
 
-        // Fetch all pledges for navigation
-        const pledgesQuery = query(collection(window.db, 'pledges'), where('email', '==', window.userEmail));
-        const allPledgesSnapshot = await getDocs(pledgesQuery);
+        // Fetch all pledges for navigation - use island for island users
+        let allPledgesSnapshot;
+        if (window.isIslandUser && window.islandUserData && window.islandUserData.island) {
+            const pledgesQuery = query(collection(window.db, 'pledges'), where('island', '==', window.islandUserData.island));
+            allPledgesSnapshot = await getDocs(pledgesQuery);
+        } else {
+            // Try both email and campaignEmail for campaign managers
+            const emailDocs = [];
+            const campaignEmailDocs = [];
+            const allDocIds = new Set();
+            
+            try {
+                const emailQuery = query(collection(window.db, 'pledges'), where('email', '==', window.userEmail));
+                const emailSnapshot = await getDocs(emailQuery);
+                emailSnapshot.docs.forEach(d => {
+                    if (!allDocIds.has(d.id)) {
+                        emailDocs.push(d);
+                        allDocIds.add(d.id);
+                    }
+                });
+            } catch (e) {
+                console.warn('[viewPledgeDetails] Query by email failed:', e);
+            }
+            
+            try {
+                const campaignEmailQuery = query(collection(window.db, 'pledges'), where('campaignEmail', '==', window.userEmail));
+                const campaignSnapshot = await getDocs(campaignEmailQuery);
+                campaignSnapshot.docs.forEach(d => {
+                    if (!allDocIds.has(d.id)) {
+                        campaignEmailDocs.push(d);
+                        allDocIds.add(d.id);
+                    }
+                });
+            } catch (e) {
+                console.warn('[viewPledgeDetails] Query by campaignEmail failed:', e);
+            }
+            
+            allPledgesSnapshot = { docs: [...emailDocs, ...campaignEmailDocs] };
+        }
+        
         const allPledges = allPledgesSnapshot.docs.map(d => ({
             id: d.id,
             ...d.data()
@@ -16726,8 +17147,12 @@ async function viewPledgeDetails(pledgeId, navigateDirection = null) {
 
         const pledgeData = pledgeSnap.data();
 
-        // Verify the pledge belongs to the current user
-        if (pledgeData.email !== window.userEmail && pledgeData.campaignEmail !== window.userEmail) {
+        // Verify the pledge belongs to the current user or island
+        const isAdmin = window.userEmail === 'rixaski@gmail.com';
+        const emailMatches = pledgeData.email === window.userEmail || pledgeData.campaignEmail === window.userEmail;
+        const islandMatches = window.isIslandUser && window.islandUserData && pledgeData.island === window.islandUserData.island;
+        
+        if (!isAdmin && !emailMatches && !islandMatches) {
             if (window.showErrorDialog) {
                 window.showErrorDialog('You do not have permission to view this pledge.', 'Access Denied');
             }
@@ -17874,9 +18299,45 @@ async function viewCandidateDetails(candidateId, navigateDirection = null) {
             getDocs
         } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
 
-        // Fetch all candidates for navigation
-        const candidatesQuery = query(collection(window.db, 'candidates'), where('email', '==', window.userEmail));
-        const allCandidatesSnapshot = await getDocs(candidatesQuery);
+        // Fetch all candidates for navigation - use island for island users
+        let allCandidatesSnapshot;
+        if (window.isIslandUser && window.islandUserData && window.islandUserData.island) {
+            const candidatesQuery = query(collection(window.db, 'candidates'), where('island', '==', window.islandUserData.island));
+            allCandidatesSnapshot = await getDocs(candidatesQuery);
+        } else {
+            // Try both email and campaignEmail for campaign managers
+            const emailDocs = [];
+            const campaignEmailDocs = [];
+            const allDocIds = new Set();
+            
+            try {
+                const emailQuery = query(collection(window.db, 'candidates'), where('email', '==', window.userEmail));
+                const emailSnapshot = await getDocs(emailQuery);
+                emailSnapshot.docs.forEach(d => {
+                    if (!allDocIds.has(d.id)) {
+                        emailDocs.push(d);
+                        allDocIds.add(d.id);
+                    }
+                });
+            } catch (e) {
+                console.warn('[viewCandidateDetails] Query by email failed:', e);
+            }
+            
+            try {
+                const campaignEmailQuery = query(collection(window.db, 'candidates'), where('campaignEmail', '==', window.userEmail));
+                const campaignSnapshot = await getDocs(campaignEmailQuery);
+                campaignSnapshot.docs.forEach(d => {
+                    if (!allDocIds.has(d.id)) {
+                        campaignEmailDocs.push(d);
+                        allDocIds.add(d.id);
+                    }
+                });
+            } catch (e) {
+                console.warn('[viewCandidateDetails] Query by campaignEmail failed:', e);
+            }
+            
+            allCandidatesSnapshot = { docs: [...emailDocs, ...campaignEmailDocs] };
+        }
         const allCandidates = allCandidatesSnapshot.docs.map(d => ({
             id: d.id,
             ...d.data()
@@ -17906,8 +18367,13 @@ async function viewCandidateDetails(candidateId, navigateDirection = null) {
 
         const candidateData = candidateSnap.data();
 
-        // Verify the candidate belongs to the current user
-        if (candidateData.email !== window.userEmail) {
+        // Verify the candidate belongs to the current user or island
+        const isAdmin = window.userEmail === 'rixaski@gmail.com';
+        const hasEmailFields = candidateData.email || candidateData.campaignEmail;
+        const emailMatches = candidateData.email === window.userEmail || candidateData.campaignEmail === window.userEmail;
+        const islandMatches = window.isIslandUser && window.islandUserData && candidateData.island === window.islandUserData.island;
+        
+        if (!isAdmin && hasEmailFields && !emailMatches && !islandMatches) {
             if (window.showErrorDialog) {
                 window.showErrorDialog('You do not have permission to view this candidate.', 'Access Denied');
             }
@@ -19882,15 +20348,24 @@ async function viewCallDetails(callId, navigateDirection = null) {
             getDocs
         } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
 
-        // Fetch all calls for navigation
+        // Fetch all calls for navigation - use island for island users
         let allCalls = [];
         let currentIndex = -1;
         try {
-            const callsQuery = query(
-                collection(window.db, 'calls'),
-                where('campaignEmail', '==', window.userEmail),
-                orderBy('callDate', 'desc')
-            );
+            let callsQuery;
+            if (window.isIslandUser && window.islandUserData && window.islandUserData.island) {
+                callsQuery = query(
+                    collection(window.db, 'calls'),
+                    where('island', '==', window.islandUserData.island),
+                    orderBy('callDate', 'desc')
+                );
+            } else {
+                callsQuery = query(
+                    collection(window.db, 'calls'),
+                    where('campaignEmail', '==', window.userEmail),
+                    orderBy('callDate', 'desc')
+                );
+            }
             const allCallsSnapshot = await getDocs(callsQuery);
             allCalls = allCallsSnapshot.docs.map(d => ({
                 id: d.id,
@@ -19900,10 +20375,18 @@ async function viewCallDetails(callId, navigateDirection = null) {
         } catch (queryError) {
             // If index missing, query without orderBy
             if (queryError.code === 'failed-precondition') {
-                const fallbackQuery = query(
-                    collection(window.db, 'calls'),
-                    where('campaignEmail', '==', window.userEmail)
-                );
+                let fallbackQuery;
+                if (window.isIslandUser && window.islandUserData && window.islandUserData.island) {
+                    fallbackQuery = query(
+                        collection(window.db, 'calls'),
+                        where('island', '==', window.islandUserData.island)
+                    );
+                } else {
+                    fallbackQuery = query(
+                        collection(window.db, 'calls'),
+                        where('campaignEmail', '==', window.userEmail)
+                    );
+                }
                 const fallbackSnapshot = await getDocs(fallbackQuery);
                 allCalls = fallbackSnapshot.docs.map(d => ({
                     id: d.id,
@@ -19936,8 +20419,12 @@ async function viewCallDetails(callId, navigateDirection = null) {
 
         const callData = callSnap.data();
 
-        // Check permission
-        if (callData.campaignEmail !== window.userEmail && callData.email !== window.userEmail) {
+        // Check permission - allow island users if island matches
+        const isAdmin = window.userEmail === 'rixaski@gmail.com';
+        const emailMatches = callData.campaignEmail === window.userEmail || callData.email === window.userEmail;
+        const islandMatches = window.isIslandUser && window.islandUserData && callData.island === window.islandUserData.island;
+        
+        if (!isAdmin && !emailMatches && !islandMatches) {
             window.showErrorDialog('You do not have permission to view this call record.', 'Access Denied');
             return;
         }
@@ -20374,7 +20861,11 @@ async function deleteCall(callId) {
         }
 
         const callData = callSnap.data();
-        if (callData.campaignEmail !== window.userEmail && callData.email !== window.userEmail) {
+        const isAdmin = window.userEmail === 'rixaski@gmail.com';
+        const emailMatches = callData.campaignEmail === window.userEmail || callData.email === window.userEmail;
+        const islandMatches = window.isIslandUser && window.islandUserData && callData.island === window.islandUserData.island;
+        
+        if (!isAdmin && !emailMatches && !islandMatches) {
             window.showErrorDialog('You do not have permission to delete this call record.', 'Access Denied');
             return;
         }
@@ -23778,132 +24269,206 @@ window.loadTransportationCoordinatorView = async (campaignEmail) => {
             taxis: []
         };
 
+        // Check if this campaign has island users associated with it (for island-based querying)
+        // This helps find transportation created by island users
+        let islandsForQuery = [];
+        try {
+            // Check if there are any island users for this campaign
+            const islandUsersQuery = query(
+                collection(database, 'islandUsers'),
+                where('campaignEmail', '==', normalizedEmail)
+            );
+            const islandUsersSnapshot = await getDocs(islandUsersQuery);
+            
+            // Get unique islands from island users
+            const islands = new Set();
+            islandUsersSnapshot.docs.forEach(doc => {
+                const data = doc.data();
+                if (data.island && data.island.trim()) {
+                    islands.add(data.island.trim());
+                }
+            });
+            
+            islandsForQuery = Array.from(islands);
+            if (islandsForQuery.length > 0) {
+                console.log(`[loadTransportationCoordinatorView] Found ${islandsForQuery.length} island(s) for campaign: ${islandsForQuery.join(', ')}`);
+            }
+        } catch (islandCheckError) {
+            console.warn(`[loadTransportationCoordinatorView] Could not check for island users:`, islandCheckError);
+        }
+
         for (const type of transportTypes) {
             try {
-                console.log(`[loadTransportationCoordinatorView] Loading ${type} for campaign: ${normalizedEmail}`);
+                console.log(`[loadTransportationCoordinatorView] Loading ${type} for campaign: ${normalizedEmail}${islandsForQuery.length > 0 ? ` (islands: ${islandsForQuery.join(', ')})` : ''}`);
 
                 // Try multiple query strategies
                 let snapshot;
                 let queryMethod = 'none';
+                let allFoundDocs = [];
+                const foundDocIds = new Set();
 
-                // Strategy 1: Try querying by email field
+                // Strategy 1: Try querying by campaignEmail field (preferred for coordinator links)
                 try {
-                    const transportQuery = query(
+                    const transportQuery1 = query(
+                        collection(database, 'transportation'),
+                        where('campaignEmail', '==', normalizedEmail),
+                        where('type', '==', type)
+                    );
+                    const snapshot1 = await getDocs(transportQuery1);
+                    snapshot1.docs.forEach(doc => {
+                        if (!foundDocIds.has(doc.id)) {
+                            allFoundDocs.push(doc);
+                            foundDocIds.add(doc.id);
+                        }
+                    });
+                    if (snapshot1.docs.length > 0) {
+                        queryMethod = 'campaignEmail+type';
+                        console.log(`[loadTransportationCoordinatorView] Query method: campaignEmail+type, found ${snapshot1.docs.length} records`);
+                    }
+                } catch (queryError1) {
+                    console.warn(`[loadTransportationCoordinatorView] Query by campaignEmail+type failed:`, queryError1);
+                }
+
+                // Strategy 2: Try querying by email field (for backward compatibility)
+                try {
+                    const transportQuery2 = query(
                         collection(database, 'transportation'),
                         where('email', '==', normalizedEmail),
                         where('type', '==', type)
                     );
-                    snapshot = await getDocs(transportQuery);
-                    queryMethod = 'email+type';
-                    console.log(`[loadTransportationCoordinatorView] Query method: email+type, found ${snapshot.docs.length} records`);
-                } catch (queryError1) {
-                    console.warn(`[loadTransportationCoordinatorView] Query by email+type failed:`, queryError1);
+                    const snapshot2 = await getDocs(transportQuery2);
+                    snapshot2.docs.forEach(doc => {
+                        if (!foundDocIds.has(doc.id)) {
+                            allFoundDocs.push(doc);
+                            foundDocIds.add(doc.id);
+                        }
+                    });
+                    if (snapshot2.docs.length > 0 && !queryMethod.includes('campaignEmail')) {
+                        queryMethod = 'email+type';
+                        console.log(`[loadTransportationCoordinatorView] Query method: email+type, found ${snapshot2.docs.length} records`);
+                    }
+                } catch (queryError2) {
+                    console.warn(`[loadTransportationCoordinatorView] Query by email+type failed:`, queryError2);
+                }
 
-                    // Strategy 2: Try querying by campaignEmail field
-                    try {
-                        const transportQuery2 = query(
-                            collection(database, 'transportation'),
-                            where('campaignEmail', '==', normalizedEmail),
-                            where('type', '==', type)
-                        );
-                        snapshot = await getDocs(transportQuery2);
-                        queryMethod = 'campaignEmail+type';
-                        console.log(`[loadTransportationCoordinatorView] Query method: campaignEmail+type, found ${snapshot.docs.length} records`);
-                    } catch (queryError2) {
-                        console.warn(`[loadTransportationCoordinatorView] Query by campaignEmail+type failed:`, queryError2);
-
-                        // Strategy 3: Load all records for this campaign and filter in memory
+                // Strategy 3: If we have island users for this campaign, also query by their islands
+                // This finds transportation created by island users (even if they don't have campaignEmail set yet)
+                // Since the link is already verified with token/password (stored in campaign manager's account),
+                // and island users belong to this campaign manager, we can include all records for these islands
+                if (islandsForQuery.length > 0) {
+                    // Query each island separately (Firestore doesn't support OR queries)
+                    for (const island of islandsForQuery) {
                         try {
-                            // Try email first
-                            const fallbackQuery1 = query(
+                            const transportQuery3 = query(
                                 collection(database, 'transportation'),
-                                where('email', '==', normalizedEmail)
+                                where('island', '==', island),
+                                where('type', '==', type)
                             );
-                            const fallbackSnapshot1 = await getDocs(fallbackQuery1);
-
-                            // Filter by type in memory
-                            const filteredDocs1 = fallbackSnapshot1.docs.filter(doc => {
-                                const data = doc.data();
-                                const dataEmail = (data.email || '').trim().toLowerCase();
-                                return dataEmail === normalizedEmail && data.type === type;
-                            });
-
-                            snapshot = {
-                                docs: filteredDocs1
-                            };
-                            queryMethod = 'email-filtered';
-                            console.log(`[loadTransportationCoordinatorView] Query method: email-filtered, found ${filteredDocs1.length} records`);
-                        } catch (queryError3) {
-                            console.warn(`[loadTransportationCoordinatorView] Fallback query by email failed:`, queryError3);
-
-                            // Try campaignEmail
-                            try {
-                                const fallbackQuery2 = query(
-                                    collection(database, 'transportation'),
-                                    where('campaignEmail', '==', normalizedEmail)
-                                );
-                                const fallbackSnapshot2 = await getDocs(fallbackQuery2);
-
-                                const filteredDocs2 = fallbackSnapshot2.docs.filter(doc => {
+                            const snapshot3 = await getDocs(transportQuery3);
+                            snapshot3.docs.forEach(doc => {
+                                if (!foundDocIds.has(doc.id)) {
                                     const data = doc.data();
-                                    const dataEmail = (data.campaignEmail || data.email || '').trim().toLowerCase();
-                                    return dataEmail === normalizedEmail && data.type === type;
-                                });
-
-                                snapshot = {
-                                    docs: filteredDocs2
-                                };
-                                queryMethod = 'campaignEmail-filtered';
-                                console.log(`[loadTransportationCoordinatorView] Query method: campaignEmail-filtered, found ${filteredDocs2.length} records`);
-                            } catch (queryError4) {
-                                console.warn(`[loadTransportationCoordinatorView] Fallback query by campaignEmail failed:`, queryError4);
-
-                                // Strategy 4: Last resort - try to load all transportation records and filter in memory
-                                // This might fail due to permissions, but worth trying
-                                try {
-                                    const allTransportQuery = query(collection(database, 'transportation'));
-                                    const allTransportSnapshot = await getDocs(allTransportQuery);
-
-                                    const filteredDocs3 = allTransportSnapshot.docs.filter(doc => {
-                                        const data = doc.data();
-                                        const dataEmail = (data.email || '').trim().toLowerCase();
-                                        const dataCampaignEmail = (data.campaignEmail || '').trim().toLowerCase();
-                                        const matchesEmail = dataEmail === normalizedEmail || dataCampaignEmail === normalizedEmail;
-                                        return matchesEmail && data.type === type;
-                                    });
-
-                                    snapshot = {
-                                        docs: filteredDocs3
-                                    };
-                                    queryMethod = 'all-filtered';
-                                    console.log(`[loadTransportationCoordinatorView] Query method: all-filtered, found ${filteredDocs3.length} records`);
-                                } catch (queryError5) {
-                                    console.error(`[loadTransportationCoordinatorView] All query methods failed for ${type}:`, queryError5);
-                                    snapshot = {
-                                        docs: []
-                                    };
+                                    // For island queries, we trust the island match since:
+                                    // 1. The link is already verified with token/password (stored in campaign manager's account)
+                                    // 2. Island users belong to this campaign manager
+                                    // 3. Transportation records created by island users have this island
+                                    // 4. We're querying specifically for this island from this campaign's island users
+                                    // So all records for this island are safe to include (they belong to this campaign via island users)
+                                    // Note: Records created by island users might have island user's email in email field,
+                                    // but since the island matches and belongs to this campaign's island users, it's safe to include
+                                    allFoundDocs.push(doc);
+                                    foundDocIds.add(doc.id);
                                 }
+                            });
+                            if (snapshot3.docs.length > 0) {
+                                if (!queryMethod.includes('island')) {
+                                    queryMethod = queryMethod ? `${queryMethod}, island+type (${island})` : `island+type (${island})`;
+                                }
+                                console.log(`[loadTransportationCoordinatorView] Query method: island+type for ${island}, found ${snapshot3.docs.length} records (added ${allFoundDocs.filter(d => !foundDocIds.has(d.id) || allFoundDocs.indexOf(d) >= allFoundDocs.length - snapshot3.docs.length).length} new)`);
                             }
+                        } catch (queryError3) {
+                            console.warn(`[loadTransportationCoordinatorView] Query by island+type for ${island} failed:`, queryError3);
                         }
                     }
                 }
+
+                // Strategy 4: Fallback - query without type filter and filter in memory
+                if (allFoundDocs.length === 0) {
+                    try {
+                        // Try campaignEmail first
+                        const fallbackQuery1 = query(
+                            collection(database, 'transportation'),
+                            where('campaignEmail', '==', normalizedEmail)
+                        );
+                        const fallbackSnapshot1 = await getDocs(fallbackQuery1);
+
+                        const filteredDocs1 = fallbackSnapshot1.docs.filter(doc => {
+                            if (foundDocIds.has(doc.id)) return false;
+                            const data = doc.data();
+                            return data.type === type;
+                        });
+
+                        filteredDocs1.forEach(doc => {
+                            allFoundDocs.push(doc);
+                            foundDocIds.add(doc.id);
+                        });
+
+                        if (filteredDocs1.length > 0) {
+                            queryMethod = 'campaignEmail-filtered';
+                            console.log(`[loadTransportationCoordinatorView] Query method: campaignEmail-filtered, found ${filteredDocs1.length} records`);
+                        }
+                    } catch (queryError4) {
+                        console.warn(`[loadTransportationCoordinatorView] Fallback query by campaignEmail failed:`, queryError4);
+                        
+                        // Try email
+                        try {
+                            const fallbackQuery2 = query(
+                                collection(database, 'transportation'),
+                                where('email', '==', normalizedEmail)
+                            );
+                            const fallbackSnapshot2 = await getDocs(fallbackQuery2);
+
+                            const filteredDocs2 = fallbackSnapshot2.docs.filter(doc => {
+                                if (foundDocIds.has(doc.id)) return false;
+                                const data = doc.data();
+                                return data.type === type;
+                            });
+
+                            filteredDocs2.forEach(doc => {
+                                allFoundDocs.push(doc);
+                                foundDocIds.add(doc.id);
+                            });
+
+                            if (filteredDocs2.length > 0) {
+                                queryMethod = 'email-filtered';
+                                console.log(`[loadTransportationCoordinatorView] Query method: email-filtered, found ${filteredDocs2.length} records`);
+                            }
+                        } catch (queryError5) {
+                            console.warn(`[loadTransportationCoordinatorView] Fallback query by email failed:`, queryError5);
+                        }
+                    }
+                }
+
+                snapshot = {
+                    docs: allFoundDocs
+                };
 
                 console.log(`[loadTransportationCoordinatorView] Found ${snapshot.docs.length} ${type} records using method: ${queryMethod}`);
 
                 snapshot.docs.forEach(doc => {
                     const data = doc.data();
-                    // Check both email and campaignEmail fields, normalize for comparison
-                    const dataEmail = (data.email || '').trim().toLowerCase();
-                    const dataCampaignEmail = (data.campaignEmail || '').trim().toLowerCase();
-                    const matchesEmail = dataEmail === normalizedEmail || dataCampaignEmail === normalizedEmail;
-
-                    if (matchesEmail && data.type === type) {
+                    // All records in snapshot are already filtered and verified:
+                    // 1. Records found via campaignEmail/email queries already match the campaign email
+                    // 2. Records found via island queries belong to islands of this campaign's island users
+                    //    and are safe to include since the link is verified with token/password
+                    // So we just need to ensure type matches (should already be filtered, but double-check)
+                    if (data.type === type) {
                         allTransportations[type].push({
                             id: doc.id,
                             ...data
                         });
                     } else {
-                        console.warn(`[loadTransportationCoordinatorView] Skipping ${type} record ${doc.id} - email mismatch. Record email: ${dataEmail || dataCampaignEmail}, campaignEmail: ${dataCampaignEmail}, type: ${data.type}. Expected: ${normalizedEmail}, ${type}`);
+                        console.warn(`[loadTransportationCoordinatorView] Skipping ${type} record ${doc.id} - type mismatch. Record type: ${data.type}, Expected: ${type}`);
                     }
                 });
             } catch (error) {

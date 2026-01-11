@@ -600,6 +600,13 @@ service cloud.firestore {
                    (resource.data.email == request.auth.token.email || 
                     resource.data.campaignEmail == request.auth.token.email);
       
+      // Island users can read ballots for their island
+      // Note: Application code filters by island, but we allow read if island field exists
+      allow read: if request.auth != null && 
+                   resource != null &&
+                   resource.data.island != null &&
+                   resource.data.island != '';
+      
       // Officers can read ballots with shareToken (unauthenticated access via temporary password)
       // This allows officers to access ballot data using the shareable link and password
       allow read: if resource.data.shareToken != null && 
@@ -632,6 +639,13 @@ service cloud.firestore {
                    (resource.data.email == request.auth.token.email || 
                     resource.data.campaignEmail == request.auth.token.email);
       
+      // Island users can read transportation for their island
+      // Note: Application code filters by island, but we allow read if island field exists
+      allow read: if request.auth != null && 
+                   resource != null &&
+                   resource.data.island != null &&
+                   resource.data.island != '';
+      
       // Allow unauthenticated reads for transportation coordinator links
       // Security is maintained by token/password verification in application code
       // This allows transportation coordinator links to work even if anonymous auth is disabled
@@ -662,6 +676,11 @@ service cloud.firestore {
                      (request.resource.data.email == request.auth.token.email || 
                       request.resource.data.campaignEmail == request.auth.token.email);
       
+      // Island users can create transportation for their island
+      allow create: if request.auth != null && 
+                     request.resource.data.island != null &&
+                     request.resource.data.island != '';
+      
       // Allow list operations for queries and snapshot listeners
       // Allow unauthenticated access (for coordinator links)
       // Security: Application code filters by campaignEmail from URL token and password
@@ -684,7 +703,10 @@ service cloud.firestore {
                     resource.data.email == request.auth.token.email);
       
       // Campaign managers can create island users for their own campaign
+      // Note: Application code must normalize emails to lowercase for this rule to work correctly
       allow create: if request.auth != null && 
+                     request.auth.token.email != null &&
+                     request.resource.data.campaignEmail != null &&
                      request.resource.data.campaignEmail == request.auth.token.email;
       
       // Campaign managers can update/delete island users for their own campaign

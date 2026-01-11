@@ -155,9 +155,20 @@ function openIslandUserModal(userId = null) {
         setTimeout(() => {
             setupIslandUserIslandDropdown();
             
-            // If editing, populate form
+            // If editing, populate form (this will hide password field)
             if (userId) {
                 populateIslandUserEditForm(userId);
+            } else {
+                // When creating, ensure password field is visible
+                const passwordGroup = document.getElementById('island-user-password-group');
+                if (passwordGroup) {
+                    passwordGroup.style.display = 'block';
+                }
+                const passwordField = document.getElementById('island-user-password');
+                if (passwordField) {
+                    passwordField.setAttribute('required', 'required');
+                    passwordField.value = '';
+                }
             }
         }, 100);
     }
@@ -223,6 +234,17 @@ async function populateIslandUserEditForm(userId) {
         const modalTitle = document.getElementById('modal-title');
         if (modalTitle) {
             modalTitle.textContent = 'Edit Island User';
+        }
+
+        // Hide password field when editing (password cannot be changed here, use refresh password feature)
+        const passwordGroup = document.getElementById('island-user-password-group');
+        if (passwordGroup) {
+            passwordGroup.style.display = 'none';
+        }
+        const passwordField = document.getElementById('island-user-password');
+        if (passwordField) {
+            passwordField.removeAttribute('required');
+            passwordField.value = '';
         }
 
         // Populate form fields
