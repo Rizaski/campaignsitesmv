@@ -13172,7 +13172,8 @@ window.generateBallotLink = async (ballotId, ballotNumber) => {
         const {
             doc,
             getDoc,
-            updateDoc
+            updateDoc,
+            serverTimestamp
         } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
 
         // Get ballot data
@@ -15317,6 +15318,12 @@ function enableVoterEdit() {
         });
 
         if (saveBtn) saveBtn.style.display = 'block';
+        
+        // Show image upload field in edit mode
+        const imageUploadDiv = document.getElementById('voter-detail-image-upload');
+        if (imageUploadDiv) {
+            imageUploadDiv.style.display = 'block';
+        }
     }
 }
 
@@ -15434,6 +15441,35 @@ async function saveVoterFromDetail() {
         if (permanentAddressInput && permanentAddressInput.value) updateData.permanentAddress = permanentAddressInput.value.trim();
         if (currentLocationInput && currentLocationInput.value) updateData.currentLocation = currentLocationInput.value.trim();
         if (phoneInput && phoneInput.value) updateData.number = phoneInput.value.trim();
+
+        // Handle image upload if a new image was selected
+        const imageInput = document.getElementById('voter-detail-image-input');
+        if (imageInput && imageInput.files && imageInput.files[0]) {
+            try {
+                const {
+                    getStorage,
+                    ref,
+                    uploadBytes,
+                    getDownloadURL
+                } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js');
+                
+                const storage = getStorage();
+                const imageFile = imageInput.files[0];
+                const imageFileName = `${voterId}_${Date.now()}_${imageFile.name}`;
+                const imageRef = ref(storage, `voters/${window.userEmail}/${imageFileName}`);
+                
+                await uploadBytes(imageRef, imageFile);
+                const imageUrl = await getDownloadURL(imageRef);
+                updateData.imageUrl = imageUrl;
+                updateData.image = imageUrl; // Keep for backward compatibility
+            } catch (imageError) {
+                console.error('Error uploading image:', imageError);
+                if (window.showErrorDialog) {
+                    window.showErrorDialog('Failed to upload image. Please try again.', 'Error');
+                }
+                // Continue with save even if image upload fails
+            }
+        }
 
         // Set email and campaignEmail fields (required for Firestore rules)
         // Updated Firestore rules allow updates if:
@@ -16405,10 +16441,28 @@ async function createVoterDetailHTML(data, {
             <div style="margin-bottom: 24px;">
                 <h3 style="margin: 0 0 20px 0; font-size: 14px; font-weight: 700; color: var(--text-color); text-transform: uppercase; letter-spacing: 0.5px;">BASIC INFORMATION</h3>
                 <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 24px;">
-                    ${imageUrl ? 
-                        `<img id="voter-detail-image" src="${imageUrl}" alt="${data.name || 'Voter'}" style="width: 64px; height: 64px; border-radius: 50%; object-fit: cover; border: 2px solid var(--primary-color);" data-voter-id="${idNumber || ''}" onerror="this.onerror=null; this.style.display='none'; const fallback=this.nextElementSibling; if(fallback) fallback.style.display='flex'; tryLoadImageFromFolder(this, '${idNumber || ''}').then(found => { if(found) { this.src=found; this.style.display=''; if(fallback) fallback.style.display='none'; } });"><div id="voter-detail-fallback" style="width: 64px; height: 64px; border-radius: 50%; display: none; align-items: center; justify-content: center; background: var(--gradient-primary); color: white; font-weight: 700; font-size: 24px; border: 2px solid var(--primary-color);">${initials}</div>` :
-                        `<div id="voter-detail-fallback" style="width: 64px; height: 64px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: var(--gradient-primary); color: white; font-weight: 700; font-size: 24px; border: 2px solid var(--primary-color);">${initials}</div>`
-                    }
+                    <div style="position: relative;">
+                        ${imageUrl ? 
+                            `<img id="voter-detail-image" src="${imageUrl}" alt="${data.name || 'Voter'}" style="width: 64px; height: 64px; border-radius: 50%; object-fit: cover; border: 2px solid var(--primary-color);" data-voter-id="${idNumber || ''}" onerror="this.onerror=null; this.style.display='none'; const fallback=this.nextElementSibling; if(fallback) fallback.style.display='flex'; tryLoadImageFromFolder(this, '${idNumber || ''}').then(found => { if(found) { this.src=found; this.style.display=''; if(fallback) fallback.style.display='none'; } });"><div id="voter-detail-fallback" style="width: 64px; height: 64px; border-radius: 50%; display: none; align-items: center; justify-content: center; background: var(--gradient-primary); color: white; font-weight: 700; font-size: 24px; border: 2px solid var(--primary-color);">${initials}</div>` :
+                            `<div id="voter-detail-fallback" style="width: 64px; height: 64px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: var(--gradient-primary); color: white; font-weight: 700; font-size: 24px; border: 2px solid var(--primary-color);">${initials}</div>`
+                        }
+                        <!-- Image upload input (hidden by default, shown in edit mode) -->
+                        <div id="voter-detail-image-upload" style="display: none; margin-top: 16px;">
+                            <input type="file" id="voter-detail-image-input" accept="image/*" style="display: none;" onchange="handleVoterDetailImagePreview(this)" />
+                            <button type="button" onclick="document.getElementById('voter-detail-image-input').click()" style="background: var(--primary-color); color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 14px; display: inline-flex; align-items: center; gap: 8px; transition: all 0.2s; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                    <polyline points="17 8 12 3 7 8"></polyline>
+                                    <line x1="12" y1="3" x2="12" y2="15"></line>
+                                </svg>
+                                Change Photo
+                            </button>
+                            <div id="voter-detail-image-preview" style="margin-top: 12px; display: none; text-align: center;">
+                                <img id="voter-detail-image-preview-img" src="" alt="Preview" style="max-width: 120px; max-height: 120px; border-radius: 8px; border: 2px solid var(--primary-color);" />
+                                <button type="button" onclick="removeVoterDetailImagePreview()" style="margin-top: 8px; padding: 6px 12px; background: var(--danger-color); color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 12px;">Remove</button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 <div style="display: grid; gap: 16px;">
                     <div>
