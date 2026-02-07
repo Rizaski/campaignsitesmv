@@ -4167,7 +4167,7 @@ function setupCSVImport() {
                 csvData = parseResult.data;
 
                 if (csvData.length === 0) {
-                    showModalError('CSV file is empty or invalid. Please ensure your CSV has columns: No., Image, ID Number, Name, Date of Birth, Age, Gender, Island, Ballot Box, Ballot Box Sequence, Permanent Address, Current Location, Number.');
+                    showModalError('CSV file is empty or invalid. Please ensure your CSV has columns: No., Image, ID Number, Name, Date of Birth, Age, Gender, Island, Ballot Sequence No, Ballot Box, Permanent Address, Current Location, Number.');
                     csvPreview.style.display = 'none';
                     startBatchImportBtn.disabled = true;
                     return;
@@ -4279,9 +4279,11 @@ function parseCSV(text) {
         'ballot-box': 'ballotbox',
         'ballot': 'ballotbox',
         'ballotnumber': 'ballotbox',
-        // Ballot Box Sequence column
-        'ballotboxsequence': 'ballotboxsequence',
+        // Ballot Sequence No / Ballot Box Sequence column (primary key for zero-day search)
+        'ballotsequenceno': 'ballotboxsequence',
+        'ballot sequence no': 'ballotboxsequence',
         'ballot-box-sequence': 'ballotboxsequence',
+        'ballotboxsequence': 'ballotboxsequence',
         'ballotboxseq': 'ballotboxsequence',
         'sequence': 'ballotboxsequence',
         'seq': 'ballotboxsequence',
@@ -4347,8 +4349,9 @@ function parseCSV(text) {
         // Ballot Box
         if (lower.includes('ballot') && lower.includes('box') && !lower.includes('sequence')) return 'ballotbox';
         if (lower.includes('ballot') && !lower.includes('sequence')) return 'ballotbox';
-        // Ballot Box Sequence
-        if ((lower.includes('ballot') && lower.includes('sequence')) || lower === 'ballotboxsequence' || lower === 'ballot box sequence') return 'ballotboxsequence';
+        // Ballot Sequence No / Ballot Box Sequence
+        if (lower.includes('ballot') && (lower.includes('sequence') || lower.includes('seq no') || lower.includes('sequenceno'))) return 'ballotboxsequence';
+        if (lower === 'ballot sequence no' || lower === 'ballotsequenceno' || lower === 'ballot box sequence') return 'ballotboxsequence';
         if (lower === 'sequence' || lower === 'seq') return 'ballotboxsequence';
         // Permanent Address
         if (lower.includes('permanent') && lower.includes('address')) return 'permanentaddress';
@@ -4480,10 +4483,10 @@ function displayCSVPreview(data, headerEl, bodyEl, countEl, originalHeaders = nu
 // Download CSV template
 function downloadCSVTemplate() {
     const constituency = (window.campaignData && window.campaignData.constituency) ? window.campaignData.constituency : 'M01 - Meedhoo Dhaaira';
-    const headers = ['#', 'Image', 'ID Number', 'Name', 'Date of Birth', ' Age', 'Gender', 'Constituency', 'Island', 'Ballot Box', 'Ballot Box Sequence', ' Permanent Address', 'Current Location', 'Number'];
+    const headers = ['#', 'Image', 'ID Number', 'Name', 'Date of Birth', ' Age', 'Gender', 'Constituency', 'Island', 'Ballot Sequence No', 'Ballot Box', ' Permanent Address', 'Current Location', 'Number'];
     const sampleRows = [
-        ['1', '', 'A123456', 'Ahmed Ali', '1990-01-15', '34', 'Male', constituency, 'Meedhoo', 'DHU-98', '1', 'Meedhoo, Maldives', 'Meedhoo, Maldives', '+960 1234567'],
-        ['2', '', 'B789012', 'Aisha Mohamed', '1985-05-20', '39', 'Female', constituency, 'Bandidhoo', 'DHU-99', '2', 'Bandidhoo, Maldives', 'Bandidhoo, Maldives', '+960 7654321']
+        ['1', '', 'A123456', 'Ahmed Ali', '1990-01-15', '34', 'Male', constituency, 'Meedhoo', '1', 'DHU-98', 'Meedhoo, Maldives', 'Meedhoo, Maldives', '+960 1234567'],
+        ['2', '', 'B789012', 'Aisha Mohamed', '1985-05-20', '39', 'Female', constituency, 'Bandidhoo', '2', 'DHU-99', 'Bandidhoo, Maldives', 'Bandidhoo, Maldives', '+960 7654321']
     ];
 
     let csv = headers.join(',') + '\n';
@@ -4609,7 +4612,7 @@ async function handleBatchVoterImport(csvDataArray) {
                         constituency: constituency || window.campaignData.constituency || null,
                         island: cleanValue(row.island),
                         ballot: cleanValue(ballotBoxValue || ballot),
-                        ballotBoxSequence: cleanValue(row.ballotboxsequence || row['ballot box sequence'] || row.ballotboxseq || row.sequence),
+                        ballotBoxSequence: cleanValue(row.ballotboxsequence || row['ballot sequence no'] || row['ballot box sequence'] || row.ballotboxseq || row.sequence),
                         permanentAddress: permanentAddress,
                         currentLocation: currentLocation,
                         number: cleanValue(row.number || row.phone || row.phonenumber || row.mobile),

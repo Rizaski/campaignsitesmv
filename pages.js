@@ -174,12 +174,11 @@ const pageTemplates = {
                 <div class="settings-section">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
                         <h2 style="margin: 0;">Island User Management</h2>
-                        <button class="btn-primary btn-compact" onclick="openIslandUserModal()" style="background: var(--primary-color); color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; font-size: 14px;">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <button class="icon-btn icon-btn-edit" onclick="openIslandUserModal()" title="Add User">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                 <line x1="12" y1="5" x2="12" y2="19"></line>
                                 <line x1="5" y1="12" x2="19" y2="12"></line>
                             </svg>
-                            Add User
                         </button>
                     </div>
                     <div class="settings-card">
@@ -420,46 +419,34 @@ const pageTemplates = {
                         </svg>
                         <h2 style="margin: 0; font-size: 14px; font-weight: 600; color: var(--text-color);">Quick Actions</h2>
                     </div>
-                    <div style="display: flex; flex-direction: column; gap: 6px;">
-                        <button class="quick-action-btn" onclick="openModal('voter')" style="display: flex; flex-direction: row; align-items: center; gap: 10px; background: var(--white); border: 1.5px solid var(--border-color); border-radius: 8px; cursor: pointer; transition: all 0.2s; padding: 10px 12px; width: 100%;">
-                            <div style="width: 28px; height: 28px; border-radius: 6px; background: var(--success-50); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--success-color)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-                                    <circle cx="9" cy="7" r="4"></circle>
-                                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-                                    <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-                                </svg>
-                            </div>
-                            <span style="font-size: 15px; font-weight: 500; color: var(--text-color); text-align: left; flex: 1;">Add Voter</span>
-                    </button>
-                        <button class="quick-action-btn" onclick="navigateToSection('calls')" style="display: flex; flex-direction: row; align-items: center; gap: 10px; background: var(--white); border: 1.5px solid var(--border-color); border-radius: 8px; cursor: pointer; transition: all 0.2s; padding: 10px 12px; width: 100%;">
-                            <div style="width: 28px; height: 28px; border-radius: 6px; background: var(--warning-50); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--warning-color)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
-                                </svg>
-                            </div>
-                            <span style="font-size: 15px; font-weight: 500; color: var(--text-color); text-align: left; flex: 1;">New Call</span>
-                    </button>
-                        <button class="quick-action-btn" onclick="openModal('event')" style="display: flex; flex-direction: row; align-items: center; gap: 10px; background: var(--white); border: 1.5px solid var(--border-color); border-radius: 8px; cursor: pointer; transition: all 0.2s; padding: 10px 12px; width: 100%;">
-                            <div style="width: 28px; height: 28px; border-radius: 6px; background: var(--info-50); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--info-color)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-                                    <line x1="16" y1="2" x2="16" y2="6"></line>
-                                    <line x1="8" y1="2" x2="8" y2="6"></line>
-                                    <line x1="3" y1="10" x2="21" y2="10"></line>
-                                </svg>
-                            </div>
-                            <span style="font-size: 15px; font-weight: 500; color: var(--text-color); text-align: left; flex: 1;">Add Event</span>
-                    </button>
-                        <button class="quick-action-btn" onclick="openModal('pledge')" style="display: flex; flex-direction: row; align-items: center; gap: 10px; background: var(--white); border: 1.5px solid var(--border-color); border-radius: 8px; cursor: pointer; transition: all 0.2s; padding: 10px 12px; width: 100%;">
-                            <div style="width: 28px; height: 28px; border-radius: 6px; background: var(--primary-50); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--primary-color)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
-                                </svg>
-                            </div>
-                            <span style="font-size: 15px; font-weight: 500; color: var(--text-color); text-align: left; flex: 1;">Record Pledge</span>
-                    </button>
+                    <div style="display: flex; flex-direction: row; gap: 8px; flex-wrap: wrap;">
+                        <button class="icon-btn icon-btn-edit quick-action-icon-btn" onclick="openModal('voter')" title="Add Voter">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                                <circle cx="9" cy="7" r="4"></circle>
+                                <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                                <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                            </svg>
+                        </button>
+                        <button class="icon-btn quick-action-icon-btn" onclick="navigateToSection('calls')" title="New Call" style="color: var(--warning-color);">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+                            </svg>
+                        </button>
+                        <button class="icon-btn icon-btn-link quick-action-icon-btn" onclick="openModal('event')" title="Add Event">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                                <line x1="16" y1="2" x2="16" y2="6"></line>
+                                <line x1="8" y1="2" x2="8" y2="6"></line>
+                                <line x1="3" y1="10" x2="21" y2="10"></line>
+                            </svg>
+                        </button>
+                        <button class="icon-btn icon-btn-edit quick-action-icon-btn" onclick="openModal('pledge')" title="Record Pledge">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                                <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                            </svg>
+                        </button>
                     </div>
                 </div>
                 
@@ -490,12 +477,11 @@ const pageTemplates = {
                 <h1 style="margin: 0; font-size: 28px; font-weight: 700; color: var(--text-color);">Candidate Management</h1>
             </div>
             <div style="display: flex; gap: 12px;">
-                <button class="btn-primary btn-compact" onclick="openModal('candidate')" style="background: var(--primary-color); color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; font-size: 14px;">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <button class="icon-btn icon-btn-edit" onclick="openModal('candidate')" title="Add Candidate">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <line x1="12" y1="5" x2="12" y2="19"></line>
                         <line x1="5" y1="12" x2="19" y2="12"></line>
                     </svg>
-                    Add Candidate
                 </button>
             </div>
         </div>
@@ -540,22 +526,20 @@ const pageTemplates = {
             <div>
                 <h1 style="margin: 0; font-size: 28px; font-weight: 700; color: var(--text-color);">Voter Profile</h1>
             </div>
-            <div style="display: flex; gap: 12px;">
-                <button class="btn-secondary btn-compact" onclick="bulkDeleteAllVoters()" style="background: var(--danger-color); color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; font-size: 14px;">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <div style="display: flex; gap: 10px; align-items: center;">
+                <button class="icon-btn icon-btn-danger" onclick="bulkDeleteAllVoters()" title="Delete All Voters">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <polyline points="3 6 5 6 21 6"></polyline>
                         <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
                         <line x1="10" y1="11" x2="10" y2="17"></line>
                         <line x1="14" y1="11" x2="14" y2="17"></line>
                     </svg>
-                    Delete All Voters
                 </button>
-                <button class="btn-primary btn-compact" onclick="openModal('voter')" style="background: var(--primary-color); color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; font-size: 14px;">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <button class="icon-btn icon-btn-edit" onclick="openModal('voter')" title="Add Voter">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <line x1="12" y1="5" x2="12" y2="19"></line>
                         <line x1="5" y1="12" x2="19" y2="12"></line>
                     </svg>
-                    Add Voter
                 </button>
             </div>
         </div>
@@ -726,7 +710,7 @@ const pageTemplates = {
                                 </th>
                                 <th style="padding: 12px; font-size: 12px; font-weight: 600; color: var(--text-light); text-transform: uppercase; background: var(--light-color);">
                                     <div style="display: flex; align-items: center; gap: 6px;">
-                                        BALLOT BOX
+                                        BALLOT BOX SEQUENCE
                                         <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="cursor: pointer; opacity: 0.5;">
                                             <polyline points="6 9 12 15 18 9"></polyline>
                                         </svg>
@@ -734,7 +718,7 @@ const pageTemplates = {
                                 </th>
                                 <th style="padding: 12px; font-size: 12px; font-weight: 600; color: var(--text-light); text-transform: uppercase; background: var(--light-color);">
                                     <div style="display: flex; align-items: center; gap: 6px;">
-                                        BALLOT BOX SEQUENCE
+                                        BALLOT BOX
                                         <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="cursor: pointer; opacity: 0.5;">
                                             <polyline points="6 9 12 15 18 9"></polyline>
                                         </svg>
@@ -818,9 +802,8 @@ const pageTemplates = {
                 <h1>Campaign Events</h1>
                 <p class="page-subtitle">Schedule and manage campaign events</p>
             </div>
-            <button class="btn-primary btn-compact" onclick="window.openModal('event')">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 6px; display: inline-block;"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-                Schedule Event
+            <button class="icon-btn icon-btn-edit" onclick="window.openModal('event')" title="Schedule Event">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
             </button>
         </div>
         
@@ -877,14 +860,12 @@ const pageTemplates = {
                 <h1>Call Management</h1>
                 <p class="page-subtitle">Track and manage campaign calls</p>
             </div>
-            <div class="action-buttons-row" style="display: flex; gap: 12px; flex-wrap: nowrap; align-items: center;">
-                <button class="btn-secondary btn-compact" onclick="openCallLinkModal()" style="white-space: nowrap; flex: 0 0 auto;">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 6px; display: inline-block;"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
-                    Generate Link
+            <div class="action-buttons-row" style="display: flex; gap: 10px; flex-wrap: nowrap; align-items: center;">
+                <button class="icon-btn icon-btn-link" onclick="openCallLinkModal()" title="Generate Link">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>
                 </button>
-                <button class="btn-primary btn-compact" onclick="window.openModal('call')" style="white-space: nowrap; flex: 0 0 auto;">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 6px; display: inline-block;"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-                    Make Call
+                <button class="icon-btn icon-btn-edit" onclick="window.openModal('call')" title="Make Call">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
                 </button>
             </div>
         </div>
@@ -1013,9 +994,8 @@ const pageTemplates = {
                 <select class="search-input" style="width: 160px; min-width: 0; flex-shrink: 0;" id="pledge-filter-constituency" title="Filter by Constituency">
                     <option value="">All Constituencies</option>
                 </select>
-                <button class="btn-primary btn-compact" style="flex-shrink: 0; white-space: nowrap;">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 6px; display: inline-block;"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-                    Add Pledge
+                <button class="icon-btn icon-btn-edit" onclick="window.openModal('pledge')" title="Add Pledge" style="flex-shrink: 0;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
                 </button>
             </div>
         </div>
@@ -1134,10 +1114,9 @@ const pageTemplates = {
                 <h1>Agent Assignment</h1>
                 <p class="page-subtitle">Assign and manage campaign agents</p>
             </div>
-            <div class="action-buttons-row" style="display: flex; gap: 12px; align-items: center; flex-wrap: nowrap;">
-                <button class="btn-primary btn-compact" onclick="window.openModal('agent')" style="white-space: nowrap; flex: 0 0 auto;">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 6px; display: inline-block;"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-                    Add Agent
+            <div class="action-buttons-row" style="display: flex; gap: 10px; align-items: center; flex-wrap: nowrap;">
+                <button class="icon-btn icon-btn-edit" onclick="window.openModal('agent')" title="Add Agent">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
                 </button>
             </div>
         </div>
@@ -1180,9 +1159,8 @@ const pageTemplates = {
             <div class="section-card">
                 <div class="section-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                     <h2>Ballot Management</h2>
-                    <button class="btn-primary btn-compact" id="add-ballot-btn">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 6px; display: inline-block;"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-                        Add Ballot
+                    <button class="icon-btn icon-btn-edit" id="add-ballot-btn" title="Add Ballot">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
                     </button>
                 </div>
                 
@@ -1248,9 +1226,8 @@ const pageTemplates = {
             <div class="section-card">
                 <div class="section-header">
                     <h2>Transportation Requirements</h2>
-                    <button class="btn-primary btn-compact" id="add-transportation-btn">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 6px; display: inline-block;"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-                        Add Transportation
+                    <button class="icon-btn icon-btn-edit" id="add-transportation-btn" title="Add Transportation">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
                     </button>
                 </div>
                 
@@ -1368,13 +1345,12 @@ const pageTemplates = {
                 <h1 style="margin: 0; font-size: 28px; font-weight: 700; color: var(--text-color);">Analytics & Reports</h1>
                 <p class="page-subtitle" style="margin: 5px 0 0 0; color: var(--text-light);">Comprehensive campaign insights and performance metrics</p>
             </div>
-            <button class="btn-primary btn-compact" onclick="refreshAnalytics()">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 6px; display: inline-block;">
+            <button class="icon-btn icon-btn-edit" onclick="refreshAnalytics()" title="Refresh Data">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                     <polyline points="23 4 23 10 17 10"></polyline>
                     <polyline points="1 20 1 14 7 14"></polyline>
                     <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
                 </svg>
-                Refresh Data
             </button>
         </div>
         
@@ -5135,8 +5111,8 @@ function createVoterTableRow(id, data, rowNumber) {
         <td style="font-size: 13px; color: var(--text-color); padding: 12px;">${dobDisplay}</td>
         <td style="font-size: 13px; color: var(--text-color); text-align: center; padding: 12px;">${age}</td>
         <td style="font-size: 13px; color: var(--text-color); padding: 12px;">${gender}</td>
-        <td style="font-size: 13px; color: var(--text-color); padding: 12px;">${ballotBox}</td>
         <td style="font-size: 13px; color: var(--text-color); padding: 12px;">${ballotBoxSequence}</td>
+        <td style="font-size: 13px; color: var(--text-color); padding: 12px;">${ballotBox}</td>
     `;
 
     // If no image URL found, try to lookup from images folder asynchronously
@@ -5255,12 +5231,12 @@ function createVoterMobileCard(id, data, rowNumber) {
                 <span class="voter-mobile-card-value">${constituency}</span>
             </div>
             <div class="voter-mobile-card-field">
-                <span class="voter-mobile-card-label">Ballot Box</span>
-                <span class="voter-mobile-card-value">${ballotBox}</span>
-            </div>
-            <div class="voter-mobile-card-field">
                 <span class="voter-mobile-card-label">Ballot Box Sequence</span>
                 <span class="voter-mobile-card-value">${data.ballotBoxSequence != null && data.ballotBoxSequence !== '' ? String(data.ballotBoxSequence) : 'N/A'}</span>
+            </div>
+            <div class="voter-mobile-card-field">
+                <span class="voter-mobile-card-label">Ballot Box</span>
+                <span class="voter-mobile-card-value">${ballotBox}</span>
             </div>
         </div>
     `;
@@ -6166,8 +6142,8 @@ async function loadVotersData(forceRefresh = false) {
                 <td style="font-size: 13px; color: var(--text-color);">${dobDisplay}</td>
                 <td style="font-size: 13px; color: var(--text-color); text-align: center;">${age}</td>
                 <td style="font-size: 13px; color: var(--text-color);">${gender}</td>
-                <td style="font-size: 13px; color: var(--text-color);">${ballotBox}</td>
                 <td style="font-size: 13px; color: var(--text-color);">${ballotBoxSequence}</td>
+                <td style="font-size: 13px; color: var(--text-color);">${ballotBox}</td>
             `;
 
             fragment.appendChild(row);
@@ -9895,10 +9871,7 @@ async function refreshAnalytics() {
     const button = event.target.closest('button') || document.querySelector('[onclick*="refreshAnalytics"]');
     if (button) {
         button.disabled = true;
-        button.innerHTML = `
-            <div class="loading-spinner" style="width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: spin 1s linear infinite; margin-right: 6px; display: inline-block;"></div>
-            Refreshing...
-        `;
+        button.innerHTML = `<div class="loading-spinner" style="width: 18px; height: 18px; border: 2px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: spin 1s linear infinite;"></div>`;
     }
 
     await loadAnalyticsData();
@@ -9907,12 +9880,11 @@ async function refreshAnalytics() {
         setTimeout(() => {
             button.disabled = false;
             button.innerHTML = `
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 6px; display: inline-block;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                     <polyline points="23 4 23 10 17 10"></polyline>
                     <polyline points="1 20 1 14 7 14"></polyline>
                     <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
                 </svg>
-                Refresh Data
             `;
         }, 500);
     }
@@ -14118,8 +14090,8 @@ function showTransportationVoterSelectionModal(transportId, type, transportData,
         </div>
         <div id="transportation-voter-error" class="error-message" style="display: none; margin-bottom: 15px;"></div>
         <div class="modal-footer">
-            <button class="btn-secondary btn-compact" onclick="closeModal()">Cancel</button>
-            <button class="btn-primary btn-compact" onclick="saveTransportationVoters('${transportId}', '${type}', ${capacity}, ${currentAssigned})">Add Selected Voters</button>
+            <button class="icon-btn" onclick="closeModal()" title="Cancel"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
+            <button class="icon-btn icon-btn-edit" onclick="saveTransportationVoters('${transportId}', '${type}', ${capacity}, ${currentAssigned})" title="Add Selected Voters"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></button>
         </div>
     `;
 
@@ -16837,12 +16809,12 @@ async function createVoterDetailHTML(data, {
                         <textarea id="voter-edit-current-location" readonly style="width: 100%; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 14px; background: var(--light-color); color: var(--text-color); min-height: 80px; resize: vertical; font-family: inherit;">${(data.currentLocation && data.currentLocation.trim()) ? data.currentLocation.trim() : ''}</textarea>
                     </div>
                     <div>
-                        <label style="display: block; font-size: 11px; font-weight: 600; color: var(--text-light); margin-bottom: 6px; text-transform: uppercase;">BALLOT BOX</label>
-                        <input type="text" id="voter-edit-ballot" value="${(data.ballot && data.ballot.trim()) ? data.ballot.trim() : ''}" readonly style="width: 100%; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 14px; background: var(--light-color); color: var(--text-color);" />
-                    </div>
-                    <div>
                         <label style="display: block; font-size: 11px; font-weight: 600; color: var(--text-light); margin-bottom: 6px; text-transform: uppercase;">BALLOT BOX SEQUENCE</label>
                         <input type="text" id="voter-edit-ballot-box-sequence" value="${(data.ballotBoxSequence != null && data.ballotBoxSequence !== '') ? String(data.ballotBoxSequence) : ''}" readonly style="width: 100%; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 14px; background: var(--light-color); color: var(--text-color);" />
+                    </div>
+                    <div>
+                        <label style="display: block; font-size: 11px; font-weight: 600; color: var(--text-light); margin-bottom: 6px; text-transform: uppercase;">BALLOT BOX</label>
+                        <input type="text" id="voter-edit-ballot" value="${(data.ballot && data.ballot.trim()) ? data.ballot.trim() : ''}" readonly style="width: 100%; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 14px; background: var(--light-color); color: var(--text-color);" />
                     </div>
                 </div>
             </div>
@@ -16851,12 +16823,11 @@ async function createVoterDetailHTML(data, {
         <!-- Pledges Tab Content -->
         <div id="voter-tab-pledges" class="voter-tab-content" style="display: none;">
             <div style="display: flex; justify-content: flex-end; margin-bottom: 16px;">
-                <button onclick="openModal('pledge', '${voterIdToUse}')" class="btn-primary btn-compact" style="display: flex; align-items: center; gap: 6px; background: var(--primary-color); color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600;">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <button onclick="openModal('pledge', '${voterIdToUse}')" class="icon-btn icon-btn-edit" title="Add Pledge">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <line x1="12" y1="5" x2="12" y2="19"></line>
                         <line x1="5" y1="12" x2="19" y2="12"></line>
                     </svg>
-                    Add Pledge
                 </button>
             </div>
             <div id="voter-pledges-container"></div>
