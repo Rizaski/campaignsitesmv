@@ -320,9 +320,9 @@ function getVoterFormTemplate() {
         <!-- Batch CSV Import Form -->
         <div id="batch-import-form" class="import-form" data-import-mode="batch" style="display: none;">
             <div class="form-group">
-                <label for="csv-file" style="display: block; font-size: 14px; font-weight: 600; color: var(--text-color); margin-bottom: 8px;">CSV File *</label>
+                <label for="csv-file" style="display: block; font-size: 14px; font-weight: 600; color: var(--text-color); margin-bottom: 8px;">CSV or Excel File *</label>
                 <div style="position: relative; border: 2px dashed var(--border-color); border-radius: 16px; padding: 32px 24px; text-align: center; background: linear-gradient(135deg, var(--light-color) 0%, rgba(111, 193, 218, 0.05) 100%); transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); cursor: pointer; overflow: hidden;" onmouseover="this.style.borderColor='var(--primary-color)'; this.style.background='linear-gradient(135deg, var(--primary-50) 0%, rgba(111, 193, 218, 0.15) 100%)'; this.style.transform='translateY(-2px)'; this.style.boxShadow='0 8px 24px rgba(111, 193, 218, 0.2)'" onmouseout="this.style.borderColor='var(--border-color)'; this.style.background='linear-gradient(135deg, var(--light-color) 0%, rgba(111, 193, 218, 0.05) 100%)'; this.style.transform='translateY(0)'; this.style.boxShadow='none'">
-                    <input type="file" id="csv-file" accept=".csv" required style="position: absolute; width: 100%; height: 100%; top: 0; left: 0; opacity: 0; cursor: pointer; z-index: 1;">
+                    <input type="file" id="csv-file" accept=".csv,.xlsx,.xls,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required style="position: absolute; width: 100%; height: 100%; top: 0; left: 0; opacity: 0; cursor: pointer; z-index: 1;">
                     <div style="pointer-events: none; z-index: 0; position: relative;">
                         <div style="width: 56px; height: 56px; margin: 0 auto 14px; background: linear-gradient(135deg, var(--primary-color), rgba(111, 193, 218, 0.8)); border-radius: 14px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(111, 193, 218, 0.3);">
                             <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -333,12 +333,12 @@ function getVoterFormTemplate() {
                                 <polyline points="10 9 9 9 8 9"></polyline>
                             </svg>
                         </div>
-                        <p style="margin: 0 0 6px 0; font-size: 15px; font-weight: 700; color: var(--text-color); letter-spacing: -0.3px;">Upload CSV File</p>
+                        <p style="margin: 0 0 6px 0; font-size: 15px; font-weight: 700; color: var(--text-color); letter-spacing: -0.3px;">Upload CSV or Excel File</p>
                         <p style="margin: 0 0 8px 0; font-size: 13px; color: var(--text-light);">Click to browse or drag and drop</p>
-                        <p style="margin: 0; font-size: 12px; color: var(--text-muted); padding: 6px 12px; background: rgba(111, 193, 218, 0.1); border-radius: 20px; display: inline-block;">CSV format only</p>
+                        <p style="margin: 0; font-size: 12px; color: var(--text-muted); padding: 6px 12px; background: rgba(111, 193, 218, 0.1); border-radius: 20px; display: inline-block;">.csv, .xlsx, or .xls</p>
                     </div>
                 </div>
-                <small style="display: block; margin-top: 12px; color: var(--text-light); font-size: 12px;">Upload a CSV file with voter data. <a href="#" id="download-csv-template" style="color: var(--primary-color); text-decoration: none; font-weight: 600;">Download template</a></small>
+                <small style="display: block; margin-top: 12px; color: var(--text-light); font-size: 12px;">Upload a CSV or Excel file with voter data. <a href="#" id="download-csv-template" style="color: var(--primary-color); text-decoration: none; font-weight: 600;">Download CSV template</a> | <a href="#" id="download-excel-template" style="color: var(--primary-color); text-decoration: none; font-weight: 600;">Download Excel template</a></small>
             </div>
             <div id="csv-preview" style="display: none; margin-top: 20px;">
                 <h4 style="font-size: 14px; font-weight: 600; margin-bottom: 10px; color: var(--text-color);">Preview (First 5 rows):</h4>
@@ -4127,7 +4127,22 @@ function setupVoterImportTabs() {
     });
 }
 
-// Setup CSV import functionality
+// Load a script by URL (for SheetJS)
+function loadScript(src) {
+    return new Promise((resolve, reject) => {
+        if (document.querySelector(`script[src="${src}"]`)) {
+            resolve();
+            return;
+        }
+        const script = document.createElement('script');
+        script.src = src;
+        script.onload = () => resolve();
+        script.onerror = () => reject(new Error('Failed to load script: ' + src));
+        document.head.appendChild(script);
+    });
+}
+
+// Setup CSV/Excel import functionality
 function setupCSVImport() {
     const csvFileInput = document.getElementById('csv-file');
     const csvPreview = document.getElementById('csv-preview');
@@ -4146,20 +4161,44 @@ function setupCSVImport() {
             downloadCSVTemplate();
         });
     }
+    const downloadExcelTemplateBtn = document.getElementById('download-excel-template');
+    if (downloadExcelTemplateBtn) {
+        downloadExcelTemplateBtn.addEventListener('click', async (e) => {
+            e.preventDefault();
+            await downloadExcelTemplate();
+        });
+    }
 
-    // Handle CSV file selection
+    // Handle CSV or Excel file selection
     if (csvFileInput) {
         csvFileInput.addEventListener('change', async (e) => {
             const file = e.target.files[0];
             if (!file) return;
 
+            const name = (file.name || '').toLowerCase();
+            const isCsv = name.endsWith('.csv');
+            const isExcel = name.endsWith('.xlsx') || name.endsWith('.xls');
+
+            if (!isCsv && !isExcel) {
+                showModalError('Unsupported file type. Please use .csv, .xlsx, or .xls');
+                csvPreview.style.display = 'none';
+                startBatchImportBtn.disabled = true;
+                return;
+            }
+
             try {
-                const text = await file.text();
-                const parseResult = parseCSV(text);
+                let parseResult;
+                if (isCsv) {
+                    const text = await file.text();
+                    parseResult = parseCSV(text);
+                } else {
+                    const buffer = await file.arrayBuffer();
+                    parseResult = await parseExcel(buffer);
+                }
                 csvData = parseResult.data;
 
                 if (csvData.length === 0) {
-                    showModalError('CSV file is empty or invalid. Please ensure your CSV has columns: No., Image, ID Number, Name, Date of Birth, Age, Gender, Island, Ballot Sequence No, Ballot Box, Permanent Address, Current Location, Number.');
+                    showModalError('File is empty or invalid. Ensure it has columns such as: ID Number, Name, Date of Birth, Age, Gender, Island, Ballot Box, Permanent Address, Current Location, Number.');
                     csvPreview.style.display = 'none';
                     startBatchImportBtn.disabled = true;
                     return;
@@ -4171,8 +4210,8 @@ function setupCSVImport() {
                 startBatchImportBtn.disabled = false;
 
             } catch (error) {
-                console.error('Error reading CSV:', error);
-                showModalError('Error reading CSV file: ' + error.message);
+                console.error('Error reading file:', error);
+                showModalError('Error reading file: ' + (error.message || 'Unknown error'));
                 csvPreview.style.display = 'none';
                 startBatchImportBtn.disabled = true;
             }
@@ -4191,217 +4230,116 @@ function setupCSVImport() {
     }
 }
 
-// Parse CSV text into array of objects
-function parseCSV(text) {
-    const lines = text.split('\n').filter(line => line.trim());
-    if (lines.length < 2) {
-        console.warn('[parseCSV] Not enough lines in CSV');
-        return {
-            data: [],
-            headers: []
-        }; // Need at least header + 1 row
-    }
-
-    // Parse header
-    const headers = parseCSVLine(lines[0]);
-
-    // Create multiple normalization variations for better matching
+// Build voter rows from header array and rows (array of value arrays). Shared by CSV and Excel.
+function getMappedHeadersAndBuildData(headers, rows) {
     const normalizeHeader = (h) => {
-        const trimmed = h.trim().toLowerCase();
+        const trimmed = String(h || '').trim().toLowerCase();
         return {
-            original: h.trim(),
+            original: String(h || '').trim(),
             noSpaces: trimmed.replace(/\s+/g, ''),
             noSpecial: trimmed.replace(/[^a-z0-9\s]/g, ''),
             noSpacesNoSpecial: trimmed.replace(/\s+/g, '').replace(/[^a-z0-9]/g, ''),
             withSpaces: trimmed
         };
     };
-
-    const normalizedHeaders = headers.map(normalizeHeader);
-
-    console.log('[parseCSV] Original headers:', headers);
-    console.log('[parseCSV] Normalized headers:', normalizedHeaders.map(h => h.noSpacesNoSpecial));
-
-    // Map common column name variations (more comprehensive)
     const headerMap = {
-        // Image column
-        'image': 'image',
-        'img': 'image',
-        'photo': 'image',
-        'picture': 'image',
-        // No. column
-        'no': 'no',
-        'num': 'no',
-        '#': 'no',
-        // Image column
-        'image': 'image',
-        'img': 'image',
-        'photo': 'image',
-        'picture': 'image',
-        // ID Number column (National ID)
-        'idnumber': 'idnumber',
-        'nid': 'idnumber',
-        'id': 'idnumber',
-        'voterid': 'idnumber',
-        'voteridnumber': 'idnumber',
-        'idno': 'idnumber',
-        'nationalid': 'idnumber',
-        // Name column
-        'name': 'name',
-        'fullname': 'name',
-        'votername': 'name',
-        // Date of Birth column
-        'dateofbirth': 'dateofbirth',
-        'dob': 'dateofbirth',
-        'birthdate': 'dateofbirth',
-        'birth': 'dateofbirth',
-        'date': 'dateofbirth',
-        // Age column
-        'age': 'age',
-        // Gender column
-        'gender': 'gender',
-        'sex': 'gender',
-        // Constituency column
-        'constituency': 'constituency',
-        'const': 'constituency',
-        // Island column
-        'island': 'island',
-        // Ballot Box column
-        'ballotbox': 'ballotbox',
-        'ballot-box': 'ballotbox',
-        'ballot': 'ballotbox',
-        'ballotnumber': 'ballotbox',
-        // Ballot Sequence No / Ballot Box Sequence column (primary key for zero-day search)
-        'ballotsequenceno': 'ballotboxsequence',
-        'ballot sequence no': 'ballotboxsequence',
-        'ballot-box-sequence': 'ballotboxsequence',
-        'ballotboxsequence': 'ballotboxsequence',
-        'ballotboxseq': 'ballotboxsequence',
-        'sequence': 'ballotboxsequence',
-        'seq': 'ballotboxsequence',
-        // Permanent Address column
-        'permanentaddress': 'permanentaddress',
-        'permanent-address': 'permanentaddress',
-        'permanent address': 'permanentaddress',
-        'address': 'permanentaddress',
-        'permanent': 'permanentaddress',
-        'peraddr': 'permanentaddress',
-        // Current Location column
-        'currentlocation': 'currentlocation',
-        'current-location': 'currentlocation',
-        'current location': 'currentlocation',
-        'location': 'currentlocation',
-        'current': 'currentlocation',
-        'currentloc': 'currentlocation',
-        // Number column (phone)
-        'number': 'number',
-        'phone': 'number',
-        'phonenumber': 'number',
-        'mobile': 'number',
-        'contact': 'number',
-        'tel': 'number'
+        'image': 'image', 'img': 'image', 'photo': 'image', 'picture': 'image',
+        'no': 'no', 'num': 'no', '#': 'no',
+        'idnumber': 'idnumber', 'nid': 'idnumber', 'id': 'idnumber', 'voterid': 'idnumber', 'voteridnumber': 'idnumber', 'idno': 'idnumber', 'nationalid': 'idnumber',
+        'name': 'name', 'fullname': 'name', 'votername': 'name',
+        'dateofbirth': 'dateofbirth', 'dob': 'dateofbirth', 'birthdate': 'dateofbirth', 'birth': 'dateofbirth', 'date': 'dateofbirth',
+        'age': 'age', 'gender': 'gender', 'sex': 'gender', 'constituency': 'constituency', 'const': 'constituency', 'island': 'island',
+        'ballotbox': 'ballotbox', 'ballot-box': 'ballotbox', 'ballot': 'ballotbox', 'ballotnumber': 'ballotbox',
+        'ballotsequenceno': 'ballotboxsequence', 'ballot sequence no': 'ballotboxsequence', 'ballot-box-sequence': 'ballotboxsequence', 'ballotboxsequence': 'ballotboxsequence', 'ballotboxseq': 'ballotboxsequence', 'sequence': 'ballotboxsequence', 'seq': 'ballotboxsequence',
+        'permanentaddress': 'permanentaddress', 'permanent-address': 'permanentaddress', 'permanent address': 'permanentaddress', 'address': 'permanentaddress', 'permanent': 'permanentaddress', 'peraddr': 'permanentaddress',
+        'currentlocation': 'currentlocation', 'current-location': 'currentlocation', 'current location': 'currentlocation', 'location': 'currentlocation', 'current': 'currentlocation', 'currentloc': 'currentlocation',
+        'number': 'number', 'phone': 'number', 'phonenumber': 'number', 'mobile': 'number', 'contact': 'number', 'tel': 'number'
     };
-
-    // Try to match headers using multiple normalization strategies
+    const normalizedHeaders = headers.map(normalizeHeader);
     const mappedHeaders = normalizedHeaders.map(norm => {
-        // Try exact match first
-        let mapped = headerMap[norm.noSpacesNoSpecial];
+        let mapped = headerMap[norm.noSpacesNoSpecial] || headerMap[norm.noSpaces] || headerMap[norm.noSpecial.replace(/\s+/g, '')];
         if (mapped) return mapped;
-
-        // Try with spaces
-        mapped = headerMap[norm.noSpaces];
-        if (mapped) return mapped;
-
-        // Try with special chars removed but spaces kept
-        mapped = headerMap[norm.noSpecial.replace(/\s+/g, '')];
-        if (mapped) return mapped;
-
-        // Try partial matches for common patterns
         const lower = norm.withSpaces;
-        // No.
-        if ((lower === 'no' || lower === 'no.' || lower === '#')) return 'no';
-        // Image
+        if (lower === 'no' || lower === 'no.' || lower === '#') return 'no';
         if (lower.includes('image') || lower.includes('img') || lower.includes('photo') || lower.includes('picture')) return 'image';
-        // ID Number
         if (lower.includes('id') && lower.includes('number')) return 'idnumber';
-        if (lower.includes('nid') || (lower === 'id' || lower === 'idnumber')) return 'idnumber';
-        // Name
+        if (lower.includes('nid') || lower === 'id' || lower === 'idnumber') return 'idnumber';
         if (lower.includes('name') && !lower.includes('campaign')) return 'name';
-        // Date of Birth
         if (lower.includes('date') && lower.includes('birth')) return 'dateofbirth';
         if (lower === 'dob' || lower.includes('birthdate')) return 'dateofbirth';
-        // Age
         if (lower === 'age') return 'age';
-        // Gender
         if (lower.includes('gender') || lower === 'sex') return 'gender';
-        // Constituency
         if (lower.includes('constituency') || lower === 'const') return 'constituency';
-        // Island
         if (lower === 'island') return 'island';
-        // Ballot Box
         if (lower.includes('ballot') && lower.includes('box') && !lower.includes('sequence')) return 'ballotbox';
         if (lower.includes('ballot') && !lower.includes('sequence')) return 'ballotbox';
-        // Ballot Sequence No / Ballot Box Sequence
         if (lower.includes('ballot') && (lower.includes('sequence') || lower.includes('seq no') || lower.includes('sequenceno'))) return 'ballotboxsequence';
         if (lower === 'ballot sequence no' || lower === 'ballotsequenceno' || lower === 'ballot box sequence') return 'ballotboxsequence';
         if (lower === 'sequence' || lower === 'seq') return 'ballotboxsequence';
-        // Permanent Address
         if (lower.includes('permanent') && lower.includes('address')) return 'permanentaddress';
-        if (lower.includes('permanent') || (lower === 'address' || lower.includes('address')) && !lower.includes('current')) return 'permanentaddress';
-        // Current Location
+        if ((lower.includes('permanent') || lower === 'address' || lower.includes('address')) && !lower.includes('current')) return 'permanentaddress';
         if (lower.includes('current') && lower.includes('location')) return 'currentlocation';
         if (lower.includes('current location')) return 'currentlocation';
-        // Number (phone)
         if ((lower === 'number' || lower.includes('phone') || lower.includes('mobile') || lower.includes('contact') || lower.includes('tel')) && !lower.includes('id')) return 'number';
-
-        // Return original if no match found
         return norm.original.toLowerCase().replace(/\s+/g, '');
     });
-
-    console.log('[parseCSV] Mapped headers:', mappedHeaders);
-
-    // Parse data rows
     const data = [];
-    for (let i = 1; i < lines.length; i++) {
-        const values = parseCSVLine(lines[i]);
-        if (values.length === 0 || values.every(v => !v.trim())) continue; // Skip empty rows
-
+    for (let i = 0; i < rows.length; i++) {
+        const values = rows[i];
+        if (!values || values.length === 0 || values.every(v => !String(v || '').trim())) continue;
         const row = {};
         mappedHeaders.forEach((mappedHeader, index) => {
             if (mappedHeader && values[index] !== undefined && values[index] !== null) {
-                const value = values[index].trim();
-                if (value) {
-                    row[mappedHeader] = value;
-                }
+                const value = String(values[index]).trim();
+                if (value) row[mappedHeader] = value;
             }
         });
-
-        // Debug first row
-        if (i === 1) {
-            console.log('[parseCSV] First row data:', row);
-            console.log('[parseCSV] First row values:', values);
-        }
-
-        // Only add rows with at least ID Number and Name
-        if ((row.idnumber || row.nid || row.id) && row.name) {
-            data.push(row);
-        } else {
-            // Log why row was skipped for debugging
-            if (i <= 5) {
-                console.warn(`[parseCSV] Row ${i} skipped - missing fields:`, {
-                    hasNID: !!(row.nid || row.idnumber),
-                    hasName: !!row.name,
-                    rowData: row
-                });
-            }
-        }
+        if ((row.idnumber || row.nid || row.id) && row.name) data.push(row);
     }
+    return { data, headers };
+}
 
-    console.log(`[parseCSV] Parsed ${data.length} valid rows from ${lines.length - 1} total rows`);
-    return {
-        data: data,
-        headers: headers // Return original headers for display
-    };
+// Parse CSV text into array of objects
+function parseCSV(text) {
+    const lines = text.split('\n').filter(line => line.trim());
+    if (lines.length < 2) {
+        console.warn('[parseCSV] Not enough lines in CSV');
+        return { data: [], headers: [] };
+    }
+    const headers = parseCSVLine(lines[0]);
+    const rows = lines.slice(1).map(l => parseCSVLine(l));
+    const result = getMappedHeadersAndBuildData(headers, rows);
+    console.log('[parseCSV] Parsed ' + result.data.length + ' valid rows from ' + (lines.length - 1) + ' total rows');
+    return result;
+}
+
+// Parse Excel (.xlsx, .xls) buffer into same shape as parseCSV. Requires SheetJS (loaded on demand).
+async function parseExcel(buffer) {
+    if (typeof window.XLSX === 'undefined') {
+        await loadScript('https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js');
+    }
+    const XLSX = window.XLSX;
+    const workbook = XLSX.read(buffer, { type: 'array' });
+    const firstSheetName = workbook.SheetNames[0];
+    if (!firstSheetName) {
+        return { data: [], headers: [] };
+    }
+    const sheet = workbook.Sheets[firstSheetName];
+    const raw = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '', raw: false });
+    if (!raw || raw.length < 2) {
+        return { data: [], headers: [] };
+    }
+    const headers = raw[0].map(c => String(c ?? '').trim());
+    const nCols = headers.length;
+    const rows = raw.slice(1).map(row => {
+        const arr = Array.isArray(row) ? row : [];
+        const cells = arr.map(c => (c != null && typeof c !== 'object') ? String(c) : (c ? String(c) : ''));
+        while (cells.length < nCols) cells.push('');
+        return cells.slice(0, nCols);
+    });
+    const result = getMappedHeadersAndBuildData(headers, rows);
+    console.log('[parseExcel] Parsed ' + result.data.length + ' valid rows from ' + (raw.length - 1) + ' total rows');
+    return result;
 }
 
 // Parse a single CSV line handling quoted values and different separators
@@ -4495,6 +4433,29 @@ function downloadCSVTemplate() {
     a.click();
     document.body.removeChild(a);
     window.URL.revokeObjectURL(url);
+}
+
+// Download Excel template (loads SheetJS on first use)
+async function downloadExcelTemplate() {
+    try {
+        if (typeof window.XLSX === 'undefined') {
+            await loadScript('https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js');
+        }
+        const XLSX = window.XLSX;
+        const constituency = (window.campaignData && window.campaignData.constituency) ? window.campaignData.constituency : 'M01 - Meedhoo Dhaaira';
+        const headers = ['#', 'Image', 'ID Number', 'Name', 'Date of Birth', 'Age', 'Gender', 'Constituency', 'Island', 'Ballot Sequence No', 'Ballot Box', 'Permanent Address', 'Current Location', 'Number'];
+        const sampleRows = [
+            ['1', '', 'A123456', 'Ahmed Ali', '1990-01-15', '34', 'Male', constituency, 'Meedhoo', '1', 'DHU-98', 'Meedhoo, Maldives', 'Meedhoo, Maldives', '+960 1234567'],
+            ['2', '', 'B789012', 'Aisha Mohamed', '1985-05-20', '39', 'Female', constituency, 'Bandidhoo', '2', 'DHU-99', 'Bandidhoo, Maldives', 'Bandidhoo, Maldives', '+960 7654321']
+        ];
+        const sheet = XLSX.utils.aoa_to_sheet([headers, ...sampleRows]);
+        const book = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(book, sheet, 'Voters');
+        XLSX.writeFile(book, 'voter_import_template.xlsx');
+    } catch (e) {
+        console.error('Excel template download failed:', e);
+        showModalError('Could not generate Excel template. You can use the CSV template instead.');
+    }
 }
 
 // Handle batch voter import
