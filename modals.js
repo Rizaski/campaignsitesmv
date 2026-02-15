@@ -2217,7 +2217,7 @@ CAND - $ {
             // Log password for debugging (remove in production if needed)
             console.log('Creating island user:', {
                 email: islandUserEmail,
-                campaignEmail: campaignManagerEmail,
+                campaignEmail: authenticatedEmail,
                 passwordLength: userPassword.length,
                 passwordPreview: userPassword.substring(0, 3) + '...'
             });
@@ -2246,7 +2246,7 @@ CAND - $ {
                     code: firestoreError.code,
                     message: firestoreError.message,
                     campaignEmail: dataToSave.campaignEmail,
-                    authEmail: campaignManagerEmail,
+                    authEmail: authenticatedEmail,
                     currentUser: currentAuthUser ? currentAuthUser.email : 'null'
                 });
                 showModalError('Failed to save island user. Please check Firestore rules. Error: ' + (firestoreError.message || firestoreError.code));
