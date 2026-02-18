@@ -4399,6 +4399,16 @@ async function checkAndSetIslandUserFilter() {
             return;
         }
 
+        // Explicit campaign manager emails (always treat as campaign manager)
+        if (window.userEmail && window.userEmail.toLowerCase() === 'alirixamv@gmail.com') {
+            window.isIslandUser = false;
+            window.islandUserData = null;
+            window.globalFilterState.locked = false;
+            const globalFilterContainer = document.getElementById('global-filter-container');
+            if (globalFilterContainer) globalFilterContainer.style.display = 'flex';
+            return;
+        }
+
         // Check if current email is an island user
         const islandUserQuery = query(
             collection(window.db, 'islandUsers'),
