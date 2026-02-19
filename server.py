@@ -220,8 +220,14 @@ class MyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                 data = json.loads(body) if body else {}
             except json.JSONDecodeError:
                 data = {}
-            token = data.get('token', '').strip()
-            password = data.get('password', '').strip()
+            token = (data.get('token') or '')
+            if not isinstance(token, str):
+                token = str(token)
+            token = token.strip()
+            password = (data.get('password') or '')
+            if not isinstance(password, str):
+                password = str(password)
+            password = password.strip()
             if not token:
                 self.send_response(400)
                 self.send_header('Content-type', 'application/json')
@@ -239,6 +245,7 @@ class MyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                 links_ref = db.collection('sharedVoterLinks')
                 query = links_ref.where('token', '==', token).limit(1)
                 docs = list(query.stream())
+                print(f"[Server] /api/share/verify token_len={len(token)} docs_found={len(docs)}")
                 if not docs:
                     self.send_response(200)
                     self.send_header('Content-type', 'application/json')
@@ -247,7 +254,12 @@ class MyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                     return
                 doc = docs[0]
                 link_data = doc.to_dict()
-                if link_data.get('password') != password:
+                stored_pw = link_data.get('password')
+                if stored_pw is not None and not isinstance(stored_pw, str):
+                    stored_pw = str(stored_pw)
+                stored_pw = (stored_pw or '').strip()
+                if stored_pw != password:
+                    print(f"[Server] /api/share/verify password_mismatch (stored_len={len(stored_pw)} sent_len={len(password)})")
                     self.send_response(200)
                     self.send_header('Content-type', 'application/json')
                     self.end_headers()

@@ -3277,7 +3277,7 @@ window.addEventListener('DOMContentLoaded', async () => {
             return;
         }
 
-        const shareToken = urlParams.get('share');
+        const shareToken = (urlParams.get('share') || '').trim();
         if (shareToken) {
             await handleShareVoterView(shareToken);
             return;
@@ -3390,7 +3390,7 @@ async function handleShareVoterView(shareToken) {
                 const res = await fetch(base + '/api/share/verify', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ token: shareToken, password: password })
+                    body: JSON.stringify({ token: (shareToken || '').trim(), password: password })
                 });
                 const data = res.ok ? await res.json().catch(() => ({})) : null;
                 if (res.ok && data && data.ok) {
