@@ -149,13 +149,34 @@ class MyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             try:
                 created_by = sess.get('createdBy') or sess.get('created_by')
                 voters_ref = db.collection('voters')
-                query = voters_ref.where('email', '==', created_by).limit(5000)
-                docs = list(query.stream())
+                q = voters_ref.where('email', '==', created_by).limit(5000)
+                docs = list(q.stream())
                 voters = []
+                voter_ids = []
                 for d in docs:
                     data = d.to_dict()
                     data['id'] = d.id
+                    voter_ids.append(d.id)
                     voters.append(data)
+
+                # Load pledges for these voters (campaign manager's pledges)
+                pledge_by_voter = {}
+                if voter_ids:
+                    pledges_ref = db.collection('pledges')
+                    # Firestore 'in' query limit is 30
+                    for i in range(0, len(voter_ids), 30):
+                        batch = voter_ids[i:i + 30]
+                        pq = pledges_ref.where('email', '==', created_by).where('voterDocumentId', 'in', batch)
+                        for pd in pq.stream():
+                            pdata = pd.to_dict()
+                            vid = pdata.get('voterDocumentId')
+                            if vid:
+                                pledge_by_voter[vid] = (pdata.get('pledge') or 'undecided').lower()
+                                if pledge_by_voter[vid] == 'negative':
+                                    pledge_by_voter[vid] = 'no'
+
+                for v in voters:
+                    v['pledge'] = pledge_by_voter.get(v['id'], 'undecided')
 
                 def _serialize(obj):
                     if hasattr(obj, 'isoformat'):
@@ -266,6 +287,73 @@ class MyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                 }).encode())
             except Exception as e:
                 print(f"[Server] /api/share/verify error: {e}")
+                self.send_response(500)
+                self.send_header('Content-type', 'application/json')
+                self.end_headers()
+                self.wfile.write(json.dumps({'ok': False, 'error': str(e)}).encode())
+            return
+
+        if parsed_path == '/api/share/pledge':
+            content_length = int(self.headers.get('Content-Length', 0))
+            body = self.rfile.read(content_length).decode('utf-8', errors='ignore') if content_length else '{}'
+            try:
+                data = json.loads(body) if body else {}
+            except json.JSONDecodeError:
+                data = {}
+            session_token = (data.get('session') or '').strip()
+            voter_id = (data.get('voterId') or data.get('voterDocumentId') or '').strip()
+            pledge = (data.get('pledge') or '').strip().lower()
+            if pledge not in ('yes', 'no', 'undecided'):
+                pledge = 'undecided'
+            if not session_token or not voter_id:
+                self.send_response(400)
+                self.send_header('Content-type', 'application/json')
+                self.end_headers()
+                self.wfile.write(json.dumps({'ok': False, 'error': 'Missing session or voterId'}).encode())
+                return
+            sess = _share_sessions.get(session_token)
+            if not sess or (sess.get('expiry') and time.time() > sess['expiry']):
+                _share_sessions.pop(session_token, None)
+                self.send_response(401)
+                self.send_header('Content-type', 'application/json')
+                self.end_headers()
+                self.wfile.write(json.dumps({'ok': False, 'error': 'Session expired or invalid'}).encode())
+                return
+            db = _get_firestore()
+            if not db:
+                self.send_response(503)
+                self.send_header('Content-type', 'application/json')
+                self.end_headers()
+                self.wfile.write(json.dumps({'ok': False, 'error': 'Share backend not configured'}).encode())
+                return
+            created_by = sess.get('createdBy') or sess.get('created_by')
+            try:
+                from datetime import datetime
+                pledges_ref = db.collection('pledges')
+                existing = list(pledges_ref.where('email', '==', created_by).where('voterDocumentId', '==', voter_id).limit(1).stream())
+                voter_ref = db.collection('voters').document(voter_id)
+                voter_snap = voter_ref.get()
+                voter_data = voter_snap.to_dict() if voter_snap.exists() else {}
+                island = voter_data.get('island') or ''
+                if existing:
+                    existing[0].reference.update({
+                        'pledge': pledge,
+                        'recordedAt': datetime.utcnow()
+                    })
+                else:
+                    pledges_ref.add({
+                        'email': created_by,
+                        'voterDocumentId': voter_id,
+                        'pledge': pledge,
+                        'island': island,
+                        'recordedAt': datetime.utcnow()
+                    })
+                self.send_response(200)
+                self.send_header('Content-type', 'application/json')
+                self.end_headers()
+                self.wfile.write(json.dumps({'ok': True}).encode())
+            except Exception as e:
+                print(f"[Server] /api/share/pledge error: {e}")
                 self.send_response(500)
                 self.send_header('Content-type', 'application/json')
                 self.end_headers()

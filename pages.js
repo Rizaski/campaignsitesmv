@@ -526,7 +526,16 @@ const pageTemplates = {
             <div>
                 <h1 style="margin: 0; font-size: 28px; font-weight: 700; color: var(--text-color);">Voter Profile</h1>
             </div>
-            <div style="display: flex; gap: 10px; align-items: center;">
+            <div class="action-buttons-row" style="display: flex; gap: 10px; align-items: center; flex-wrap: nowrap;">
+                <button id="voter-share-list-btn" class="icon-btn" onclick="openModal('share-voter-list')" title="Share voter database">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="18" cy="5" r="3"></circle>
+                        <circle cx="6" cy="12" r="3"></circle>
+                        <circle cx="18" cy="19" r="3"></circle>
+                        <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+                        <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+                    </svg>
+                </button>
                 <button class="icon-btn icon-btn-danger" onclick="bulkDeleteAllVoters()" title="Delete All Voters">
                     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <polyline points="3 6 5 6 21 6"></polyline>
@@ -1651,6 +1660,11 @@ function _loadPageContentInternal(section) {
                 } else if (section === 'voters') {
                     loadVotersData();
                     setupSearchListeners('voters');
+                    // Show Share voter database button for campaign managers, hide for island users
+                    setTimeout(() => {
+                        const shareBtn = document.getElementById('voter-share-list-btn');
+                        if (shareBtn) shareBtn.style.display = (window.isIslandUser && window.islandUserData) ? 'none' : '';
+                    }, 0);
                     // Setup search input listener for new search field
                     setTimeout(() => {
                         const searchInput = document.getElementById('voters-search-input');
@@ -3110,7 +3124,7 @@ async function loadRecentActivities(forceRefresh = false) {
                         } else if (diffDays < 7) {
                             timeText = `${diffDays} day${diffDays !== 1 ? 's' : ''} ago`;
                         } else {
-                            timeText = timestamp.toLocaleDateString();
+                            timeText = (timestamp instanceof Date && !isNaN(timestamp.getTime())) ? timestamp.toLocaleDateString() : 'Recently';
                         }
                     } catch (err) {
                         console.warn('Error formatting timestamp:', err);
@@ -3167,7 +3181,7 @@ function renderCachedActivitiesData() {
                     } else if (diffDays < 7) {
                         timeText = `${diffDays} day${diffDays !== 1 ? 's' : ''} ago`;
                     } else {
-                        timeText = timestamp.toLocaleDateString();
+                        timeText = (timestamp instanceof Date && !isNaN(timestamp.getTime())) ? timestamp.toLocaleDateString() : 'Recently';
                     }
                 } catch (err) {
                     console.warn('Error formatting timestamp:', err);
@@ -15809,13 +15823,12 @@ async function saveVoterFromDetail() {
 
         if (nameInput && nameInput.value) updateData.name = nameInput.value.trim();
         if (dobInput && dobInput.value) {
-            // Parse date of birth
             const dobValue = dobInput.value.trim();
             if (dobValue && dobValue !== 'N/A') {
-                try {
-                    updateData.dateOfBirth = new Date(dobValue);
-                } catch (e) {
-                    updateData.dateOfBirth = dobValue;
+                const dobDate = new Date(dobValue);
+                if (!isNaN(dobDate.getTime())) {
+                    const { Timestamp } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
+                    updateData.dateOfBirth = Timestamp.fromDate(dobDate);
                 }
             }
         }
@@ -15955,8 +15968,10 @@ async function saveVoterFromDetail() {
 
                 if (dateInput.value) {
                     const date = new Date(dateInput.value);
-                    pledgeUpdate.date = Timestamp.fromDate(date);
-                    pledgeUpdate.recordedAt = Timestamp.fromDate(date);
+                    if (!isNaN(date.getTime())) {
+                        pledgeUpdate.date = Timestamp.fromDate(date);
+                        pledgeUpdate.recordedAt = Timestamp.fromDate(date);
+                    }
                 }
 
                 if (notesTextarea.value !== undefined) {
@@ -16004,10 +16019,12 @@ async function saveVoterFromDetail() {
                     const date = new Date(dateInput.value);
                     if (timeInput.value) {
                         const [hours, minutes] = timeInput.value.split(':');
-                        date.setHours(parseInt(hours), parseInt(minutes));
+                        date.setHours(parseInt(hours, 10), parseInt(minutes, 10));
                     }
-                    callUpdate.callDate = Timestamp.fromDate(date);
-                    callUpdate.date = Timestamp.fromDate(date);
+                    if (!isNaN(date.getTime())) {
+                        callUpdate.callDate = Timestamp.fromDate(date);
+                        callUpdate.date = Timestamp.fromDate(date);
+                    }
                 }
 
                 if (timeInput.value) {
@@ -16065,6 +16082,8 @@ async function saveVoterFromDetail() {
             errorMessage = 'You do not have permission to edit this voter. The voter document must have an email or campaignEmail field matching your email address.';
         } else if (error.code === 'not-found') {
             errorMessage = 'Voter not found. It may have been deleted.';
+        } else if (error.message && error.message.indexOf('Invalid time value') !== -1) {
+            errorMessage = 'Invalid date or time in one of the fields (e.g. call date or pledge date). Please check and try again.';
         } else if (error.message) {
             errorMessage = `Error: ${error.message}`;
         }
@@ -16556,7 +16575,7 @@ function renderVoterPledges(pledges, candidateNamesMap = {}) {
                         <div>
                             <label style="display: block; font-size: 11px; font-weight: 700; color: #374151; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">DATE RECORDED</label>
                             <p class="voter-pledge-date-display" data-pledge-id="${pledgeId}" style="margin: 0; color: #111827; font-size: 14px; font-weight: 500;">${formatDate(pledgeDate)}</p>
-                            <input type="date" class="voter-pledge-date-edit" data-pledge-id="${pledgeId}" value="${pledgeDate instanceof Date ? pledgeDate.toISOString().split('T')[0] : ''}" style="display: none; width: 100%; padding: 8px 12px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 13px; background: white;" />
+                            <input type="date" class="voter-pledge-date-edit" data-pledge-id="${pledgeId}" value="${pledgeDate instanceof Date && !isNaN(pledgeDate.getTime()) ? pledgeDate.toISOString().split('T')[0] : ''}" style="display: none; width: 100%; padding: 8px 12px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 13px; background: white;" />
                         </div>
                         <div style="grid-column: span 2;">
                             <label style="display: block; font-size: 11px; font-weight: 700; color: #374151; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">CANDIDATE INFORMATION</label>
@@ -16731,7 +16750,8 @@ async function saveVoterPledgeFromDetail(pledgeId) {
         const {
             doc,
             getDoc,
-            updateDoc
+            updateDoc,
+            Timestamp
         } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
 
         const pledgeRef = doc(window.db, 'pledges', pledgeId);
@@ -16755,7 +16775,10 @@ async function saveVoterPledgeFromDetail(pledgeId) {
         }
 
         if (dateEdit && dateEdit.value) {
-            updateData.recordedAt = new Date(dateEdit.value);
+            const dateVal = new Date(dateEdit.value);
+            if (!isNaN(dateVal.getTime())) {
+                updateData.recordedAt = Timestamp.fromDate(dateVal);
+            }
         }
 
         await updateDoc(pledgeRef, updateData);
@@ -16965,9 +16988,10 @@ async function createVoterDetailHTML(data, {
                             </thead>
                             <tbody id="calls-edit-tbody">
                                 ${calls.map(call => {
-                                    const callDateObj = call.callDate?.toDate ? call.callDate.toDate() : (call.date?.toDate ? call.date.toDate() : (call.date ? new Date(call.date) : new Date()));
-                                    const dateValue = callDateObj instanceof Date ? callDateObj.toISOString().split('T')[0] : '';
-                                    const callDate = callDateObj instanceof Date ? callDateObj.toLocaleDateString() : (call.date || 'N/A');
+                                    const callDateObj = call.callDate?.toDate ? call.callDate.toDate() : (call.date?.toDate ? call.date.toDate() : (call.date && (call.date.seconds != null || call.date._seconds != null) ? new Date((call.date.seconds || call.date._seconds) * 1000) : (call.date ? new Date(call.date) : new Date())));
+                                    const validCallDate = callDateObj instanceof Date && !isNaN(callDateObj.getTime());
+                                    const dateValue = validCallDate ? callDateObj.toISOString().split('T')[0] : '';
+                                    const callDate = validCallDate ? callDateObj.toLocaleDateString() : (call.date || 'N/A');
                                     const callTime = call.time || '';
                                     const caller = call.caller || call.agentName || call.madeBy || 'N/A';
                                     const callStatus = call.status || 'Completed';

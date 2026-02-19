@@ -168,6 +168,14 @@ function getShareVoterListFormTemplate() {
 // Last generated share link/password for copy buttons
 window._shareLinkLastGenerated = { url: '', password: '' };
 
+function safeShareLinkDateLabel(val) {
+    if (val == null) return '—';
+    try {
+        const d = val.toDate ? val.toDate() : (val._seconds != null ? new Date(val._seconds * 1000) : new Date(val));
+        return (d instanceof Date && !isNaN(d.getTime())) ? d.toLocaleString() : '—';
+    } catch (_) { return '—'; }
+}
+
 async function setupShareVoterListModal() {
     await loadSharedVoterLinks();
     const islandSelect = document.getElementById('share-recipient-island');
@@ -206,11 +214,9 @@ async function loadSharedVoterLinks() {
             return;
         }
         tbody.innerHTML = links.map(link => {
-            const created = link.createdAt && link.createdAt.toDate ? link.createdAt.toDate().toLocaleString() : '—';
+            const created = safeShareLinkDateLabel(link.createdAt);
             const lastAccess = link.accessLog && link.accessLog.length > 0
-                ? (link.accessLog[link.accessLog.length - 1].accessedAt && link.accessLog[link.accessLog.length - 1].accessedAt.toDate
-                    ? link.accessLog[link.accessLog.length - 1].accessedAt.toDate().toLocaleString()
-                    : '—')
+                ? safeShareLinkDateLabel(link.accessLog[link.accessLog.length - 1].accessedAt)
                 : 'Never';
             const baseUrl = window.location.origin + window.location.pathname + (window.location.pathname.endsWith('/') ? '' : '/') + (window.location.pathname.endsWith('.html') ? '' : 'index.html');
             const url = baseUrl + (baseUrl.indexOf('?') >= 0 ? '&' : '?') + 'share=' + encodeURIComponent(link.token);
@@ -241,11 +247,9 @@ async function loadSharedVoterLinks() {
                 return;
             }
             tbody.innerHTML = links.map(link => {
-                const created = link.createdAt && link.createdAt.toDate ? link.createdAt.toDate().toLocaleString() : '—';
+                const created = safeShareLinkDateLabel(link.createdAt);
                 const lastAccess = link.accessLog && link.accessLog.length > 0
-                    ? (link.accessLog[link.accessLog.length - 1].accessedAt && link.accessLog[link.accessLog.length - 1].accessedAt.toDate
-                        ? link.accessLog[link.accessLog.length - 1].accessedAt.toDate().toLocaleString()
-                        : '—')
+                    ? safeShareLinkDateLabel(link.accessLog[link.accessLog.length - 1].accessedAt)
                     : 'Never';
                 const baseUrl = window.location.origin + window.location.pathname + (window.location.pathname.endsWith('/') ? '' : '/') + (window.location.pathname.endsWith('.html') ? '' : 'index.html');
                 const url = baseUrl + (baseUrl.indexOf('?') >= 0 ? '&' : '?') + 'share=' + encodeURIComponent(link.token);
@@ -1202,6 +1206,23 @@ function getIslandUserFormTemplate() {
     `;
 }
 
+// Sanitize dates before Firestore write: invalid Date -> null, valid Date -> Timestamp (avoids "Invalid time value")
+function sanitizeDatesForFirestore(obj, Timestamp) {
+    if (obj === null || typeof obj !== 'object') return;
+    if (Array.isArray(obj)) {
+        obj.forEach(item => sanitizeDatesForFirestore(item, Timestamp));
+        return;
+    }
+    for (const key of Object.keys(obj)) {
+        const v = obj[key];
+        if (v instanceof Date) {
+            obj[key] = isNaN(v.getTime()) ? null : (Timestamp ? Timestamp.fromDate(v) : v);
+        } else if (v && typeof v === 'object' && typeof v.toDate !== 'function') {
+            sanitizeDatesForFirestore(v, Timestamp);
+        }
+    }
+}
+
 // Handle form submission
 async function handleFormSubmit(type, formData) {
     if (!window.db || !window.userEmail) {
@@ -1213,7 +1234,8 @@ async function handleFormSubmit(type, formData) {
         const {
             collection,
             addDoc,
-            serverTimestamp
+            serverTimestamp,
+            Timestamp
         } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
 
         let dataToSave = {};
@@ -2093,6 +2115,8 @@ CAND - $ {
             }
         }
 
+        sanitizeDatesForFirestore(dataToSave, Timestamp);
+
         let collectionName;
         if (type === 'voter') {
             collectionName = 'voters';
@@ -2962,7 +2986,9 @@ CAND - $ {
 
     } catch (error) {
         console.error('Error saving data:', error);
-        showModalError(error.message || 'Failed to save data. Please try again.');
+        const msg = (error && error.message) || '';
+        const isInvalidTime = msg.indexOf('Invalid time value') !== -1 || (error instanceof RangeError);
+        showModalError(isInvalidTime ? 'Invalid date in one of the fields. Please check all date/time values and try again.' : (msg || 'Failed to save data. Please try again.'));
     }
 }
 
