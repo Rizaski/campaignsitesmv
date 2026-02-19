@@ -74,15 +74,17 @@ class handler(BaseHTTPRequestHandler):
                 self.wfile.write(json.dumps({"ok": False, "error": "Invalid link or password"}).encode())
                 return
             created_by = link_data.get("createdBy", "")
+            recipient_island = (link_data.get("recipientIsland") or "").strip() or None
+            recipient_agent_id = (link_data.get("recipientAgentId") or "").strip() or None
             access_log = list(link_data.get("accessLog") or [])
             access_log.append({
                 "accessedAt": datetime.utcnow(),
                 "recipientName": link_data.get("recipientName", ""),
-                "recipientIsland": link_data.get("recipientIsland", ""),
+                "recipientIsland": recipient_island or "",
             })
             doc.reference.update({"accessLog": access_log})
             session_id = str(uuid.uuid4())
-            if not set_session(session_id, token, created_by):
+            if not set_session(session_id, token, created_by, recipient_island, recipient_agent_id):
                 self.send_response(500)
                 self.send_header("Content-type", "application/json")
                 _cors_headers(self)

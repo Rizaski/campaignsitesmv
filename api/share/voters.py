@@ -56,7 +56,14 @@ class handler(BaseHTTPRequestHandler):
         try:
             created_by = sess.get("createdBy") or sess.get("created_by")
             voters_ref = db.collection("voters")
-            q = voters_ref.where("email", "==", created_by).limit(5000)
+            recipient_agent_id = sess.get("recipientAgentId") or None
+            recipient_island = sess.get("recipientIsland") or None
+            if recipient_agent_id:
+                q = voters_ref.where("email", "==", created_by).where("assignedAgentId", "==", recipient_agent_id).limit(5000)
+            elif recipient_island:
+                q = voters_ref.where("email", "==", created_by).where("island", "==", recipient_island).limit(5000)
+            else:
+                q = voters_ref.where("email", "==", created_by).limit(5000)
             docs = list(q.stream())
             voters = []
             voter_ids = []

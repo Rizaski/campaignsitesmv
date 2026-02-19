@@ -53,17 +53,22 @@ def get_session(session_id):
         return None
 
 
-def set_session(session_id, token, created_by):
-    """Store session in Firestore."""
+def set_session(session_id, token, created_by, recipient_island=None, recipient_agent_id=None):
+    """Store session in Firestore (recipientIsland/recipientAgentId used to filter voters like agent assigned list)."""
     db = _get_firestore()
     if not db:
         return False
     try:
-        db.collection("shareSessions").document(session_id).set({
+        data = {
             "token": token,
             "createdBy": created_by,
             "expiry": time.time() + _SESSION_TTL,
-        })
+        }
+        if recipient_island:
+            data["recipientIsland"] = recipient_island
+        if recipient_agent_id:
+            data["recipientAgentId"] = recipient_agent_id
+        db.collection("shareSessions").document(session_id).set(data)
         return True
     except Exception:
         return False

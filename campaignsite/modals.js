@@ -111,13 +111,14 @@ function getShareVoterListFormTemplate() {
                             <tr style="background: var(--light-color);">
                                 <th style="padding: 10px 12px; text-align: left;">Recipient name</th>
                                 <th style="padding: 10px 12px; text-align: left;">Island</th>
+                                <th style="padding: 10px 12px; text-align: left;">List scope</th>
                                 <th style="padding: 10px 12px; text-align: left;">Created</th>
                                 <th style="padding: 10px 12px; text-align: left;">Last access</th>
                                 <th style="padding: 10px 12px; text-align: left;">Actions</th>
                             </tr>
                         </thead>
                         <tbody id="share-voter-links-tbody">
-                            <tr><td colspan="5" style="padding: 20px; text-align: center; color: var(--text-light);">Loading...</td></tr>
+                            <tr><td colspan="6" style="padding: 20px; text-align: center; color: var(--text-light);">Loading...</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -125,7 +126,7 @@ function getShareVoterListFormTemplate() {
             <hr style="border: none; border-top: 1px solid var(--border-color); margin: 20px 0;">
             <div class="form-group">
                 <label style="font-weight: 600; margin-bottom: 8px; display: block;">Generate new link</label>
-                <p style="font-size: 12px; color: var(--text-light); margin-bottom: 12px;">Enter the recipient's name and island. A link and temporary password will be generated to share.</p>
+                <p style="font-size: 12px; color: var(--text-light); margin-bottom: 12px;">Enter the recipient's name and island. Optionally restrict the list to an island or to one agent's assigned voters (same as agent portal).</p>
                 <div style="display: grid; gap: 12px;">
                     <div>
                         <label for="share-recipient-name">Recipient name *</label>
@@ -136,6 +137,13 @@ function getShareVoterListFormTemplate() {
                         <select id="share-recipient-island" style="width: 100%; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: 8px;">
                             <option value="">Select island</option>
                         </select>
+                    </div>
+                    <div>
+                        <label for="share-recipient-agent">Restrict to agent's list (optional)</label>
+                        <select id="share-recipient-agent" style="width: 100%; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: 8px;">
+                            <option value="">All voters (no restriction)</option>
+                        </select>
+                        <small style="color: var(--text-light); font-size: 11px;">If set, recipient sees only this agent's assigned voters (same as agent portal).</small>
                     </div>
                     <button type="button" id="share-generate-link-btn" class="btn-primary">Generate link</button>
                 </div>
@@ -189,6 +197,28 @@ async function setupShareVoterListModal() {
             islandSelect.appendChild(opt);
         });
     }
+    const agentSelect = document.getElementById('share-recipient-agent');
+    if (agentSelect && window.db && window.userEmail) {
+        try {
+            const { collection, query, where, getDocs } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
+            let agentsQuery = query(collection(window.db, 'agents'), where('email', '==', window.userEmail));
+            if (window.islandUserData && window.islandUserData.island) {
+                agentsQuery = query(collection(window.db, 'agents'), where('island', '==', window.islandUserData.island));
+            }
+            const snap = await getDocs(agentsQuery);
+            agentSelect.innerHTML = '<option value="">All voters (no restriction)</option>';
+            snap.docs.forEach(d => {
+                const data = d.data();
+                const name = data.name || d.id;
+                const opt = document.createElement('option');
+                opt.value = d.id;
+                opt.textContent = name;
+                agentSelect.appendChild(opt);
+            });
+        } catch (e) {
+            console.warn('Could not load agents for share modal:', e);
+        }
+    }
     const btn = document.getElementById('share-generate-link-btn');
     if (btn) btn.onclick = () => generateShareVoterLink();
 }
@@ -197,7 +227,7 @@ async function loadSharedVoterLinks() {
     const tbody = document.getElementById('share-voter-links-tbody');
     if (!tbody) return;
     if (!window.db || !window.userEmail) {
-        tbody.innerHTML = '<tr><td colspan="5" style="padding: 20px; color: var(--text-light);">Please log in.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" style="padding: 20px; color: var(--text-light);">Please log in.</td></tr>';
         return;
     }
     try {
@@ -210,7 +240,7 @@ async function loadSharedVoterLinks() {
         const snap = await getDocs(q);
         const links = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         if (links.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="5" style="padding: 20px; color: var(--text-light);">No shared links yet. Generate one below.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="6" style="padding: 20px; color: var(--text-light);">No shared links yet. Generate one below.</td></tr>';
             return;
         }
         tbody.innerHTML = links.map(link => {
@@ -220,9 +250,11 @@ async function loadSharedVoterLinks() {
                 : 'Never';
             const baseUrl = window.location.origin + window.location.pathname + (window.location.pathname.endsWith('/') ? '' : '/') + (window.location.pathname.endsWith('.html') ? '' : 'index.html');
             const url = baseUrl + (baseUrl.indexOf('?') >= 0 ? '&' : '?') + 'share=' + encodeURIComponent(link.token);
+            const scope = link.recipientAgentId ? "Agent's list" : (link.recipientIsland ? "Island only" : "All");
             return `<tr>
                 <td style="padding: 10px 12px;">${(link.recipientName || '—')}</td>
                 <td style="padding: 10px 12px;">${(link.recipientIsland || '—')}</td>
+                <td style="padding: 10px 12px;">${scope}</td>
                 <td style="padding: 10px 12px;">${created}</td>
                 <td style="padding: 10px 12px;">${lastAccess}</td>
                 <td style="padding: 10px 12px;">
@@ -243,7 +275,7 @@ async function loadSharedVoterLinks() {
                 return bt - at;
             });
             if (links.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="5" style="padding: 20px; color: var(--text-light);">No shared links yet.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="6" style="padding: 20px; color: var(--text-light);">No shared links yet.</td></tr>';
                 return;
             }
             tbody.innerHTML = links.map(link => {
@@ -253,9 +285,11 @@ async function loadSharedVoterLinks() {
                     : 'Never';
                 const baseUrl = window.location.origin + window.location.pathname + (window.location.pathname.endsWith('/') ? '' : '/') + (window.location.pathname.endsWith('.html') ? '' : 'index.html');
                 const url = baseUrl + (baseUrl.indexOf('?') >= 0 ? '&' : '?') + 'share=' + encodeURIComponent(link.token);
+                const scope = link.recipientAgentId ? "Agent's list" : (link.recipientIsland ? "Island only" : "All");
                 return `<tr>
                     <td style="padding: 10px 12px;">${(link.recipientName || '—')}</td>
                     <td style="padding: 10px 12px;">${(link.recipientIsland || '—')}</td>
+                    <td style="padding: 10px 12px;">${scope}</td>
                     <td style="padding: 10px 12px;">${created}</td>
                     <td style="padding: 10px 12px;">${lastAccess}</td>
                     <td style="padding: 10px 12px;">
@@ -265,7 +299,7 @@ async function loadSharedVoterLinks() {
                 </tr>`;
             }).join('');
         } else {
-            tbody.innerHTML = '<tr><td colspan="5" style="padding: 20px; color: var(--danger-color);">Error loading links.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="6" style="padding: 20px; color: var(--danger-color);">Error loading links.</td></tr>';
         }
     }
 }
@@ -287,6 +321,8 @@ async function generateShareVoterLink() {
     if (errEl) errEl.style.display = 'none';
     const name = nameInput && nameInput.value ? nameInput.value.trim() : '';
     const island = islandSelect && islandSelect.value ? islandSelect.value.trim() : '';
+    const agentSelect = document.getElementById('share-recipient-agent');
+    const recipientAgentId = (agentSelect && agentSelect.value) ? agentSelect.value.trim() : '';
     if (!name || !island) {
         if (errEl) { errEl.textContent = 'Please enter recipient name and island.'; errEl.style.display = 'block'; }
         return;
@@ -299,7 +335,7 @@ async function generateShareVoterLink() {
         const { collection, addDoc, serverTimestamp } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
         const token = randomToken(32);
         const password = randomToken(8);
-        await addDoc(collection(window.db, 'sharedVoterLinks'), {
+        const linkData = {
             createdBy: window.userEmail,
             recipientName: name,
             recipientIsland: island,
@@ -307,7 +343,9 @@ async function generateShareVoterLink() {
             password,
             createdAt: serverTimestamp(),
             accessLog: []
-        });
+        };
+        if (recipientAgentId) linkData.recipientAgentId = recipientAgentId;
+        await addDoc(collection(window.db, 'sharedVoterLinks'), linkData);
         const baseUrl = window.location.origin + window.location.pathname + (window.location.pathname.endsWith('/') ? '' : '/') + (window.location.pathname.endsWith('.html') ? '' : 'index.html');
         const url = baseUrl + (baseUrl.indexOf('?') >= 0 ? '&' : '?') + 'share=' + encodeURIComponent(token);
         if (urlInput) urlInput.value = url;
@@ -317,6 +355,7 @@ async function generateShareVoterLink() {
         await loadSharedVoterLinks();
         if (nameInput) nameInput.value = '';
         if (islandSelect) islandSelect.value = '';
+        if (agentSelect) agentSelect.value = '';
         if (window.showSuccess) window.showSuccess('Link generated. Share the link and password with the recipient.', 'Success');
     } catch (e) {
         console.error('generateShareVoterLink:', e);
