@@ -3198,7 +3198,10 @@ onAuthStateChanged(auth, async (user) => {
             await determineLoginScreen();
         }
     } else {
-        // No user logged in - determine which login screen to show
+        // No user logged in - do NOT switch to login if we're on a share link (temporary password screen)
+        if (new URLSearchParams(window.location.search).get('share')) {
+            return;
+        }
         // Make sure loading class is removed before showing login
         removeAuthLoadingClass();
         await determineLoginScreen();
@@ -3208,6 +3211,10 @@ onAuthStateChanged(auth, async (user) => {
 // Determine which login screen to show (onboarding vs regular)
 async function determineLoginScreen() {
     try {
+        // Do not show login when viewer is on a share link (temporary password screen)
+        if (new URLSearchParams(window.location.search).get('share')) {
+            return;
+        }
         // Ensure loading class is removed
         removeAuthLoadingClass();
 
