@@ -379,8 +379,16 @@ def main():
         print(f"Server started at http://localhost:{PORT}")
         print(f"Open your browser and go to: {url}")
         print("=" * 60)
+        _share_ready = _get_firestore() is not None
+        if _share_ready:
+            print("Share API: enabled (Firebase connected).")
+        else:
+            key_path = Path(__file__).parent / 'campaignsite' / 'serviceAccountKey.json'
+            print("Share API: disabled (share links will show 'not configured').")
+            print(f"  To enable: add Firebase service account key at: {key_path}")
+            print("  See campaignsite/SHARE-SETUP.md for steps.")
         print("\nPress Ctrl+C to stop the server\n")
-        
+
         # Try to open browser automatically
         try:
             webbrowser.open(url)
