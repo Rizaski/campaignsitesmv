@@ -3514,16 +3514,13 @@ function renderShareVoterList() {
 
     const perPage = (window._shareVoterPagination && window._shareVoterPagination.perPage) || 15;
     const totalFiltered = filtered.length;
-    const totalPages = Math.max(1, Math.ceil(totalFiltered / perPage));
-    let currentPage = (window._shareVoterPagination && window._shareVoterPagination.currentPage) || 1;
-    currentPage = Math.min(Math.max(1, currentPage), totalPages);
-    if (window._shareVoterPagination) window._shareVoterPagination.currentPage = currentPage;
-    const start = (currentPage - 1) * perPage;
-    const pageRows = totalFiltered === 0 ? [] : filtered.slice(start, start + perPage);
+    const labels = { island: 'Island', constituency: 'Constituency', ballot: 'Ballot Box', gender: 'Gender', permanentAddress: 'Permanent Address', currentLocation: 'Current Location' };
+    const groupLabel = labels[groupBy] || 'Group';
 
-    if (groupBy && pageRows.length > 0) {
+    let totalPages, currentPage, start, pageRows, fromRow, toRow;
+    if (groupBy && totalFiltered > 0) {
         const grouped = {};
-        pageRows.forEach(v => {
+        filtered.forEach(v => {
             let key = '';
             switch (groupBy) {
                 case 'island': key = v.island || 'Unknown'; break;
@@ -3537,22 +3534,52 @@ function renderShareVoterList() {
             if (!grouped[key]) grouped[key] = [];
             grouped[key].push(v);
         });
-        const labels = { island: 'Island', constituency: 'Constituency', ballot: 'Ballot Box', gender: 'Gender', permanentAddress: 'Permanent Address', currentLocation: 'Current Location' };
-        const groupLabel = labels[groupBy] || 'Group';
-        let index = start;
+        const sortedKeys = Object.keys(grouped).sort();
+        const pageOfGroups = [];
+        let acc = [];
+        let accCount = 0;
+        sortedKeys.forEach(key => {
+            const voters = grouped[key];
+            if (accCount + voters.length > perPage && accCount > 0) {
+                pageOfGroups.push(acc);
+                acc = [];
+                accCount = 0;
+            }
+            acc.push({ key: key, voters: voters });
+            accCount += voters.length;
+        });
+        if (acc.length) pageOfGroups.push(acc);
+        totalPages = Math.max(1, pageOfGroups.length);
+        currentPage = (window._shareVoterPagination && window._shareVoterPagination.currentPage) || 1;
+        currentPage = Math.min(Math.max(1, currentPage), totalPages);
+        if (window._shareVoterPagination) window._shareVoterPagination.currentPage = currentPage;
+        const currentPageGroups = pageOfGroups[currentPage - 1] || [];
+        fromRow = 0;
+        for (let p = 0; p < currentPage - 1; p++) fromRow += pageOfGroups[p].reduce((s, g) => s + g.voters.length, 0);
+        toRow = fromRow + currentPageGroups.reduce((s, g) => s + g.voters.length, 0);
+        let index = fromRow;
         const rows = [];
-        Object.keys(grouped).sort().forEach(key => {
-            rows.push('<tr style="background: var(--primary-50); font-weight: 600;"><td colspan="9" style="padding: 10px 12px;">' + escapeHtml(groupLabel + ': ' + key) + '</td></tr>');
-            grouped[key].forEach(v => {
+        currentPageGroups.forEach(g => {
+            rows.push('<tr style="background: var(--primary-50); font-weight: 600;"><td colspan="9" style="padding: 10px 12px;">' + escapeHtml(groupLabel + ': ' + g.key) + '</td></tr>');
+            g.voters.forEach(v => {
                 rows.push('<tr style="' + getSharePledgeRowStyle(v) + '">' + rowCells(v, index) + '</tr>');
                 index++;
             });
         });
+        pageRows = [];
         tbody.innerHTML = rows.join('');
         tbody.querySelectorAll('.share-pledge-select').forEach(el => {
             el.addEventListener('change', function() { window.updateSharePledge(this.dataset.voterId, this.value); });
         });
     } else {
+        totalPages = Math.max(1, Math.ceil(totalFiltered / perPage));
+        currentPage = (window._shareVoterPagination && window._shareVoterPagination.currentPage) || 1;
+        currentPage = Math.min(Math.max(1, currentPage), totalPages);
+        if (window._shareVoterPagination) window._shareVoterPagination.currentPage = currentPage;
+        start = (currentPage - 1) * perPage;
+        pageRows = totalFiltered === 0 ? [] : filtered.slice(start, start + perPage);
+        fromRow = totalFiltered === 0 ? 0 : start + 1;
+        toRow = totalFiltered === 0 ? 0 : Math.min(start + perPage, totalFiltered);
         const hasFilters = searchTerm || filterIslandVal || filterConstituencyVal || filterBallotVal || filterGenderVal;
         tbody.innerHTML = pageRows.length === 0
             ? '<tr><td colspan="9" style="text-align: center; padding: 24px; color: var(--text-light);">' + (hasFilters ? 'No voters match the filters.' : 'No voters in this list.') + '</td></tr>'
@@ -3567,8 +3594,8 @@ function renderShareVoterList() {
     const prevBtn = document.getElementById('share-voter-prev-btn');
     const nextBtn = document.getElementById('share-voter-next-btn');
     if (paginationInfo) {
-        const from = totalFiltered === 0 ? 0 : start + 1;
-        const to = totalFiltered === 0 ? 0 : Math.min(start + perPage, totalFiltered);
+        const from = groupBy && totalFiltered > 0 ? fromRow + 1 : (totalFiltered === 0 ? 0 : start + 1);
+        const to = groupBy && totalFiltered > 0 ? toRow : (totalFiltered === 0 ? 0 : Math.min(start + perPage, totalFiltered));
         paginationInfo.textContent = 'Showing ' + from + '–' + to + ' of ' + totalFiltered;
     }
     if (prevBtn) {
