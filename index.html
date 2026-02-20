@@ -370,80 +370,49 @@
 
     <!-- Share Voter List: password entry or shared voter list with Refresh -->
     <div id="share-voter-screen" class="screen">
-        <div style="min-height: 100vh; background: var(--light-color); padding: 20px;">
-            <div id="share-voter-password-wrap" style="max-width: 450px; margin: 0 auto; padding-top: 60px;">
-                <div style="background: var(--white); border-radius: 16px; padding: 40px; box-shadow: var(--shadow-lg);">
-                    <h1 style="margin: 0 0 10px 0; color: var(--primary-color);">Access voter list</h1>
-                    <p style="color: var(--text-light); margin: 0 0 24px 0;">Enter the temporary password you received to view the list and record pledges.</p>
+        <div class="share-voter-page">
+            <div id="share-voter-password-wrap">
+                <div>
+                    <h1>Access voter list</h1>
+                    <p class="share-voter-subtitle">Enter the temporary password you received to view the list and record pledges.</p>
                     <form id="share-voter-password-form" action="javascript:void(0);" onsubmit="return false;">
                         <div class="form-group">
                             <label for="share-voter-password-input">Temporary password</label>
-                            <input type="password" id="share-voter-password-input" placeholder="Enter password" autocomplete="off" style="width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: 8px;">
+                            <input type="password" id="share-voter-password-input" placeholder="Enter password" autocomplete="off">
                         </div>
-                        <div id="share-voter-password-error" style="color: var(--danger-color); font-size: 14px; margin-top: 10px; display: none;"></div>
-                        <button type="button" id="share-voter-access-btn" class="btn-primary" style="width: 100%; margin-top: 20px;">Access list</button>
+                        <div id="share-voter-password-error" class="share-voter-error"></div>
+                        <button type="button" id="share-voter-access-btn" class="btn-primary share-voter-access-btn">Access list</button>
                     </form>
                 </div>
             </div>
-            <div id="share-voter-list-wrap" style="max-width: 1200px; margin: 0 auto; display: none;">
-                <div style="background: var(--white); border-radius: 16px; padding: 24px; margin-bottom: 20px; box-shadow: var(--shadow-md);">
-                    <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 16px;">
-                        <div style="flex: 1; min-width: 200px;">
-                            <div style="display: flex; flex-wrap: wrap; gap: 16px 24px; align-items: center;">
-                                <div><span style="font-size: 11px; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px;">Constituency</span><div id="share-voter-constituency" style="font-weight: 600; font-size: 15px;">—</div></div>
-                                <div><span style="font-size: 11px; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px;">Current date</span><div id="share-voter-current-date" style="font-weight: 600; font-size: 15px;">—</div></div>
-                                <div><span style="font-size: 11px; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px;">Countdown</span><div id="share-voter-countdown" style="font-weight: 600; font-size: 15px;">—</div></div>
-                                <div><span style="font-size: 11px; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px;">Assigned to</span><div id="share-voter-assigned-name" style="font-weight: 600; font-size: 15px;">—</div></div>
-                            </div>
-                        </div>
-                        <button type="button" id="share-voter-refresh-btn" class="icon-btn" title="Refresh data" style="flex-shrink: 0; width: 44px; height: 44px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 10px; border: 1px solid var(--border-color); background: var(--light-color); color: var(--primary-color); cursor: pointer;">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
-                        </button>
+            <div id="share-voter-list-wrap" style="display: none;">
+                <div class="share-voter-header-card">
+                    <div class="share-voter-info-grid">
+                        <div class="share-voter-info-item"><span class="label">Constituency</span><div id="share-voter-constituency" class="value">—</div></div>
+                        <div class="share-voter-info-item"><span class="label">Current date</span><div id="share-voter-current-date" class="value">—</div></div>
+                        <div class="share-voter-info-item"><span class="label">Countdown</span><div id="share-voter-countdown" class="value">—</div></div>
+                        <div class="share-voter-info-item"><span class="label">Assigned to</span><div id="share-voter-assigned-name" class="value">—</div></div>
                     </div>
+                    <button type="button" id="share-voter-refresh-btn" class="icon-btn" title="Refresh data">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
+                    </button>
                 </div>
-                <div style="background: var(--white); border-radius: 16px; padding: 24px; box-shadow: var(--shadow-md); overflow-x: auto;">
-                    <div id="share-voter-loading" style="text-align: center; padding: 40px;">Loading voters...</div>
+                <div class="share-voter-table-card">
+                    <div id="share-voter-loading">Loading voters...</div>
                     <div id="share-voter-table-container" style="display: none;">
-                        <div style="padding: 0 0 16px 0; display: flex; flex-direction: column; gap: 12px;">
-                            <p style="margin: 0 0 4px 0; font-size: 12px; font-weight: 600; color: var(--text-light);">Search, filter, sort &amp; group</p>
-                            <input type="text" id="share-voter-search-input" placeholder="Search voters by name or ID..." style="width: 100%; padding: 10px 16px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 14px; background: var(--light-color);">
-                            <div style="display: flex; flex-wrap: wrap; gap: 12px; align-items: center;">
-                                <select id="share-voter-filter-island" style="flex: 1; min-width: 140px; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 13px; background: var(--white); cursor: pointer;">
-                                    <option value="">All Islands</option>
-                                </select>
-                                <select id="share-voter-filter-constituency" style="flex: 1; min-width: 140px; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 13px; background: var(--white); cursor: pointer;">
-                                    <option value="">All Constituencies</option>
-                                </select>
-                                <select id="share-voter-filter-ballot" style="flex: 1; min-width: 140px; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 13px; background: var(--white); cursor: pointer;">
-                                    <option value="">All Ballot Boxes</option>
-                                </select>
-                                <select id="share-voter-filter-gender" style="flex: 1; min-width: 120px; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 13px; background: var(--white); cursor: pointer;">
-                                    <option value="">All Genders</option>
-                                    <option value="Male">Male</option>
-                                    <option value="Female">Female</option>
-                                </select>
-                                <select id="share-voter-group-by" style="flex: 1; min-width: 160px; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 13px; background: var(--white); cursor: pointer;">
-                                    <option value="">No Grouping</option>
-                                    <option value="island">Group by Island</option>
-                                    <option value="constituency">Group by Constituency</option>
-                                    <option value="ballot">Group by Ballot Box</option>
-                                    <option value="gender">Group by Gender</option>
-                                    <option value="permanentAddress">Group by Permanent Address</option>
-                                    <option value="currentLocation">Group by Current Location</option>
-                                </select>
-                                <select id="share-voter-sort-by" style="flex: 1; min-width: 140px; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 13px; background: var(--white); cursor: pointer;">
-                                    <option value="">No sorting</option>
-                                    <option value="name">Sort by Name</option>
-                                    <option value="idNumber">Sort by ID Number</option>
-                                    <option value="island">Sort by Island</option>
-                                    <option value="constituency">Sort by Constituency</option>
-                                    <option value="ballot">Sort by Ballot</option>
-                                    <option value="gender">Sort by Gender</option>
-                                    <option value="pledge">Sort by Pledge</option>
-                                </select>
+                        <div class="share-voter-filters">
+                            <p class="filter-label">Search, filter, sort &amp; group</p>
+                            <input type="text" id="share-voter-search-input" placeholder="Search voters by name or ID...">
+                            <div class="share-voter-selects">
+                                <select id="share-voter-filter-island"><option value="">All Islands</option></select>
+                                <select id="share-voter-filter-constituency"><option value="">All Constituencies</option></select>
+                                <select id="share-voter-filter-ballot"><option value="">All Ballot Boxes</option></select>
+                                <select id="share-voter-filter-gender"><option value="">All Genders</option><option value="Male">Male</option><option value="Female">Female</option></select>
+                                <select id="share-voter-group-by"><option value="">No Grouping</option><option value="island">Group by Island</option><option value="constituency">Group by Constituency</option><option value="ballot">Group by Ballot Box</option><option value="gender">Group by Gender</option><option value="permanentAddress">Group by Permanent Address</option><option value="currentLocation">Group by Current Location</option></select>
+                                <select id="share-voter-sort-by"><option value="">No sorting</option><option value="name">Sort by Name</option><option value="idNumber">Sort by ID Number</option><option value="island">Sort by Island</option><option value="constituency">Sort by Constituency</option><option value="ballot">Sort by Ballot</option><option value="gender">Sort by Gender</option><option value="pledge">Sort by Pledge</option></select>
                             </div>
                         </div>
-                        <table class="data-table" style="width: 100%;">
+                        <table class="data-table">
                             <thead>
                                 <tr>
                                     <th style="width: 52px;">Image</th>
@@ -458,11 +427,11 @@
                             </thead>
                             <tbody id="share-voter-table-body"></tbody>
                         </table>
-                        <div id="share-voter-pagination" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-top: 16px; padding: 12px 0; border-top: 1px solid var(--border-color);">
-                            <span id="share-voter-pagination-info" style="font-size: 13px; color: var(--text-light);">Showing 0–0 of 0</span>
+                        <div id="share-voter-pagination">
+                            <span id="share-voter-pagination-info">Showing 0–0 of 0</span>
                             <div style="display: flex; gap: 8px;">
-                                <button type="button" id="share-voter-prev-btn" class="btn-secondary btn-compact" style="padding: 8px 16px;">Previous</button>
-                                <button type="button" id="share-voter-next-btn" class="btn-secondary btn-compact" style="padding: 8px 16px;">Next</button>
+                                <button type="button" id="share-voter-prev-btn" class="btn-secondary btn-compact">Previous</button>
+                                <button type="button" id="share-voter-next-btn" class="btn-secondary btn-compact">Next</button>
                             </div>
                         </div>
                     </div>
