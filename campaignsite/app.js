@@ -3508,7 +3508,8 @@ function renderShareVoterList() {
             : '<td style="vertical-align:middle;"><div style="width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--gradient-primary);color:white;font-weight:600;font-size:14px;">' + initials + '</div></td>';
         const pledgeVal = pledge === 'yes' ? 'yes' : pledge === 'no' ? 'no' : 'undecided';
         const pledgeSelect = '<select class="share-pledge-select" data-voter-id="' + escapeHtml(v.id) + '" style="padding:6px 10px;border:1px solid var(--border-color);border-radius:6px;font-size:13px;background:white;"><option value="undecided"' + (pledgeVal === 'undecided' ? ' selected' : '') + '>Undecided</option><option value="yes"' + (pledgeVal === 'yes' ? ' selected' : '') + '>Yes</option><option value="no"' + (pledgeVal === 'no' ? ' selected' : '') + '>No</option></select>';
-        return imgCell + `<td>${index + 1}</td><td>${escapeHtml(v.name || v.fullName || '—')}</td><td>${escapeHtml(v.idNumber || v.voterId || '—')}</td><td>${escapeHtml(v.island || '—')}</td><td>${escapeHtml(v.constituency || '—')}</td><td>${escapeHtml(v.ballot || '—')}</td><td>${pledgeSelect}</td>`;
+        const mobile = (v.mobileNumber || v.phoneNumber || v.phone || v.mobile || v.contactNumber || '').toString().trim();
+        return imgCell + `<td>${index + 1}</td><td>${escapeHtml(v.name || v.fullName || '—')}</td><td>${escapeHtml(v.idNumber || v.voterId || '—')}</td><td>${escapeHtml(v.island || '—')}</td><td>${escapeHtml(v.constituency || '—')}</td><td>${escapeHtml(v.ballot || '—')}</td><td class="share-voter-col-mobile">${escapeHtml(mobile || '—')}</td><td>${pledgeSelect}</td>`;
     }
 
     const perPage = (window._shareVoterPagination && window._shareVoterPagination.perPage) || 15;
@@ -3541,7 +3542,7 @@ function renderShareVoterList() {
         let index = start;
         const rows = [];
         Object.keys(grouped).sort().forEach(key => {
-            rows.push('<tr style="background: var(--primary-50); font-weight: 600;"><td colspan="8" style="padding: 10px 12px;">' + escapeHtml(groupLabel + ': ' + key) + '</td></tr>');
+            rows.push('<tr style="background: var(--primary-50); font-weight: 600;"><td colspan="9" style="padding: 10px 12px;">' + escapeHtml(groupLabel + ': ' + key) + '</td></tr>');
             grouped[key].forEach(v => {
                 rows.push('<tr style="' + getSharePledgeRowStyle(v) + '">' + rowCells(v, index) + '</tr>');
                 index++;
@@ -3554,7 +3555,7 @@ function renderShareVoterList() {
     } else {
         const hasFilters = searchTerm || filterIslandVal || filterConstituencyVal || filterBallotVal || filterGenderVal;
         tbody.innerHTML = pageRows.length === 0
-            ? '<tr><td colspan="8" style="text-align: center; padding: 24px; color: var(--text-light);">' + (hasFilters ? 'No voters match the filters.' : 'No voters in this list.') + '</td></tr>'
+            ? '<tr><td colspan="9" style="text-align: center; padding: 24px; color: var(--text-light);">' + (hasFilters ? 'No voters match the filters.' : 'No voters in this list.') + '</td></tr>'
             : pageRows.map((v, i) => '<tr style="' + getSharePledgeRowStyle(v) + '">' + rowCells(v, start + i) + '</tr>').join('');
         tbody.querySelectorAll('.share-pledge-select').forEach(el => {
             el.addEventListener('change', function() { window.updateSharePledge(this.dataset.voterId, this.value); });
@@ -3690,6 +3691,9 @@ window.loadShareVoterList = async function () {
         window._shareVotersList = voters;
         if (loadingEl) loadingEl.style.display = 'none';
         if (tableContainer) tableContainer.style.display = 'block';
+
+        const groupBySelect = document.getElementById('share-voter-group-by');
+        if (groupBySelect) groupBySelect.value = 'permanentAddress';
 
         if (window._shareHeaderInterval) clearInterval(window._shareHeaderInterval);
         updateShareVoterHeader();

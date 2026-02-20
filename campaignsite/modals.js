@@ -315,7 +315,8 @@ async function generateShareVoterLink() {
             currentLocation: (v.currentLocation || v.location || '').trim(),
             pledge: pledgeByVoter[v.id] || 'undecided',
             imageUrl: v.imageUrl || v.image || v.photo || v.photoUrl || '',
-            image: v.imageUrl || v.image || v.photo || v.photoUrl || ''
+            image: v.imageUrl || v.image || v.photo || v.photoUrl || '',
+            mobileNumber: (v.phoneNumber || v.phone || v.mobile || v.contactNumber || v.mobileNumber || '').toString().trim()
         }));
 
         const constituency = (window.campaignData && window.campaignData.constituency) ? window.campaignData.constituency : '';

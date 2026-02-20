@@ -412,21 +412,24 @@
                                 <select id="share-voter-sort-by"><option value="">No sorting</option><option value="name">Sort by Name</option><option value="idNumber">Sort by ID Number</option><option value="island">Sort by Island</option><option value="constituency">Sort by Constituency</option><option value="ballot">Sort by Ballot</option><option value="gender">Sort by Gender</option><option value="pledge">Sort by Pledge</option></select>
                             </div>
                         </div>
-                        <table class="data-table">
-                            <thead>
-                                <tr>
-                                    <th style="width: 52px;">Image</th>
-                                    <th>#</th>
-                                    <th>Name</th>
-                                    <th>ID Number</th>
-                                    <th>Island</th>
-                                    <th>Constituency</th>
-                                    <th>Ballot</th>
-                                    <th>Pledge</th>
-                                </tr>
-                            </thead>
-                            <tbody id="share-voter-table-body"></tbody>
-                        </table>
+                        <div class="share-voter-table-scroll">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 52px;">Image</th>
+                                        <th>#</th>
+                                        <th>Name</th>
+                                        <th>ID Number</th>
+                                        <th>Island</th>
+                                        <th>Constituency</th>
+                                        <th>Ballot</th>
+                                        <th class="share-voter-col-mobile">Mobile</th>
+                                        <th>Pledge</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="share-voter-table-body"></tbody>
+                            </table>
+                        </div>
                         <div id="share-voter-pagination">
                             <span id="share-voter-pagination-info">Showing 0–0 of 0</span>
                             <div style="display: flex; gap: 8px;">

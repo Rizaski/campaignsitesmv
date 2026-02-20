@@ -312,7 +312,8 @@ async function generateShareVoterLink() {
             gender: v.gender || '',
             permanentAddress: (v.permanentAddress || v.address || '').trim(),
             currentLocation: (v.currentLocation || v.location || '').trim(),
-            pledge: pledgeByVoter[v.id] || 'undecided'
+            pledge: pledgeByVoter[v.id] || 'undecided',
+            mobileNumber: (v.phoneNumber || v.phone || v.mobile || v.contactNumber || v.mobileNumber || '').toString().trim()
         }));
 
         const constituency = (window.campaignData && window.campaignData.constituency) ? window.campaignData.constituency : '';
