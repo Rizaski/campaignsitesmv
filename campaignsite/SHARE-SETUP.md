@@ -1,6 +1,33 @@
 # Enable Voter Database Share Links
 
-The **Share voter database** feature (temporary password links) needs the server to connect to Firebase. If you see "Share feature is not configured on the server", do the following.
+The **Share voter database** feature (temporary password links) needs the server to connect to Firebase. If you see **"Share feature is not configured on the server"**, follow the section that matches where you run the app (local vs deployed).
+
+---
+
+## Deployed on Vercel (fix "not configured" on live site)
+
+If the message appears on your **deployed** URL (e.g. `https://your-app.vercel.app`):
+
+1. **Get your Firebase service account JSON** (same project as your app):
+   - [Firebase Console](https://console.firebase.google.com/) → your project → **Project settings** (gear) → **Service accounts** → **Generate new private key** → download the JSON file.
+
+2. **Add it in Vercel:**
+   - [Vercel Dashboard](https://vercel.com/dashboard) → your project → **Settings** → **Environment Variables**.
+   - **Name:** `FIREBASE_SERVICE_ACCOUNT_JSON`
+   - **Value:** Paste the **entire** contents of the JSON file (all keys: `type`, `project_id`, `private_key_id`, `private_key`, `client_email`, etc.). You can paste as one line or multiple lines; both work.
+   - Apply to **Production** (and Preview if you use it), then save.
+
+3. **Redeploy** so the new variable is used:
+   - **Deployments** → open the **⋯** on the latest deployment → **Redeploy** (or push a new commit and let Vercel deploy).
+
+**Troubleshooting (still "not configured" after the above):**
+- Confirm the variable name is exactly `FIREBASE_SERVICE_ACCOUNT_JSON` (no typo, no space).
+- The value must be valid JSON. If you wrapped it in extra quotes, remove them.
+- After changing env vars you must redeploy; the current deployment was built without the variable.
+
+---
+
+## Local development (Python server)
 
 **Required:** Install the Firebase Admin SDK (once per Python environment):
 ```bash
@@ -53,16 +80,4 @@ Instead of placing the key in `campaignsite/serviceAccountKey.json`, you can set
 
 Then run the server from that same terminal. The server will use this key when the file above is not present.
 
----
-
-## Deployed on Vercel
-
-When the app is deployed to **Vercel**, the share API runs as serverless functions under `/api/share/verify`, `/api/share/voters`, and `/api/share/pledge`. Sessions are stored in Firestore in the `shareSessions` collection (no in-memory state).
-
-1. In the [Vercel dashboard](https://vercel.com/dashboard), open your project → **Settings** → **Environment Variables**.
-2. Add a variable:
-   - **Name:** `FIREBASE_SERVICE_ACCOUNT_JSON`
-   - **Value:** The **entire contents** of your Firebase service account JSON file (the same project as your app, e.g. `version6-7c39b`). Paste the whole JSON as a single line or multi-line string.
-3. Redeploy the project so the new variable is applied.
-
-After that, share links and the temporary password screen will work on your Vercel URL.
+When the app is deployed to **Vercel**, the share API runs as serverless functions under `/api/share/verify`, `/api/share/voters`, and `/api/share/pledge`. Sessions are stored in Firestore (`shareSessions` collection). Use the **"Deployed on Vercel"** section at the top of this doc to configure the env var and redeploy.
