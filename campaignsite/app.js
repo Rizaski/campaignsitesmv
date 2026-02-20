@@ -3591,6 +3591,32 @@ function renderShareVoterList() {
     if (paginationEl) paginationEl.style.display = totalFiltered === 0 ? 'none' : 'flex';
 }
 
+function updateShareVoterHeader() {
+    const constituencyEl = document.getElementById('share-voter-constituency');
+    const currentDateEl = document.getElementById('share-voter-current-date');
+    const countdownEl = document.getElementById('share-voter-countdown');
+    const assignedEl = document.getElementById('share-voter-assigned-name');
+    const meta = window._shareMeta || {};
+    if (constituencyEl) constituencyEl.textContent = (meta.constituency || '').trim() || '—';
+    if (assignedEl) assignedEl.textContent = (meta.recipientName || '').trim() || '—';
+    const now = new Date();
+    if (currentDateEl) currentDateEl.textContent = now.toLocaleDateString('en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' });
+    if (countdownEl) {
+        const ed = meta.electionDate;
+        const et = meta.electionTime || '08:30';
+        if (!ed) { countdownEl.textContent = '—'; return; }
+        let target = new Date(ed + 'T' + et);
+        if (isNaN(target.getTime())) { countdownEl.textContent = '—'; return; }
+        const rem = target - now;
+        if (rem <= 0) { countdownEl.textContent = 'Election day'; return; }
+        const d = Math.floor(rem / (1000 * 60 * 60 * 24));
+        const h = Math.floor((rem % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        const m = Math.floor((rem % (1000 * 60 * 60)) / (1000 * 60));
+        const s = Math.floor((rem % (1000 * 60)) / 1000);
+        countdownEl.textContent = d + 'd ' + String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+    }
+}
+
 window.updateSharePledge = async function(voterId, value) {
     const token = window._shareToken;
     if (!token || !window.db) return;
@@ -3650,6 +3676,12 @@ window.loadShareVoterList = async function () {
             return;
         }
         const data = snap.data();
+        window._shareMeta = {
+            constituency: data.constituency || '',
+            recipientName: data.recipientName || '',
+            electionDate: data.electionDate || '',
+            electionTime: data.electionTime || '08:30'
+        };
         const pledgeUpdates = data.pledgeUpdates || {};
         const voters = (data.voters || []).map(v => ({
             ...v,
@@ -3658,6 +3690,10 @@ window.loadShareVoterList = async function () {
         window._shareVotersList = voters;
         if (loadingEl) loadingEl.style.display = 'none';
         if (tableContainer) tableContainer.style.display = 'block';
+
+        if (window._shareHeaderInterval) clearInterval(window._shareHeaderInterval);
+        updateShareVoterHeader();
+        window._shareHeaderInterval = setInterval(updateShareVoterHeader, 1000);
 
         const islandSelect = document.getElementById('share-voter-filter-island');
         const constituencySelect = document.getElementById('share-voter-filter-constituency');

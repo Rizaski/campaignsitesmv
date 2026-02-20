@@ -386,9 +386,20 @@
                 </div>
             </div>
             <div id="share-voter-list-wrap" style="max-width: 1200px; margin: 0 auto; display: none;">
-                <div style="background: var(--white); border-radius: 16px; padding: 24px; margin-bottom: 20px; box-shadow: var(--shadow-md); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
-                    <h1 style="margin: 0;">Voter list (shared)</h1>
-                    <button type="button" id="share-voter-refresh-btn" class="btn-primary">Refresh data</button>
+                <div style="background: var(--white); border-radius: 16px; padding: 24px; margin-bottom: 20px; box-shadow: var(--shadow-md);">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 16px;">
+                        <div style="flex: 1; min-width: 200px;">
+                            <div style="display: flex; flex-wrap: wrap; gap: 16px 24px; align-items: center;">
+                                <div><span style="font-size: 11px; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px;">Constituency</span><div id="share-voter-constituency" style="font-weight: 600; font-size: 15px;">—</div></div>
+                                <div><span style="font-size: 11px; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px;">Current date</span><div id="share-voter-current-date" style="font-weight: 600; font-size: 15px;">—</div></div>
+                                <div><span style="font-size: 11px; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px;">Countdown</span><div id="share-voter-countdown" style="font-weight: 600; font-size: 15px;">—</div></div>
+                                <div><span style="font-size: 11px; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px;">Assigned to</span><div id="share-voter-assigned-name" style="font-weight: 600; font-size: 15px;">—</div></div>
+                            </div>
+                        </div>
+                        <button type="button" id="share-voter-refresh-btn" class="icon-btn" title="Refresh data" style="flex-shrink: 0; width: 44px; height: 44px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 10px; border: 1px solid var(--border-color); background: var(--light-color); color: var(--primary-color); cursor: pointer;">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path></svg>
+                        </button>
+                    </div>
                 </div>
                 <div style="background: var(--white); border-radius: 16px; padding: 24px; box-shadow: var(--shadow-md); overflow-x: auto;">
                     <div id="share-voter-loading" style="text-align: center; padding: 40px;">Loading voters...</div>

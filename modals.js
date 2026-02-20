@@ -315,12 +315,19 @@ async function generateShareVoterLink() {
             pledge: pledgeByVoter[v.id] || 'undecided'
         }));
 
+        const constituency = (window.campaignData && window.campaignData.constituency) ? window.campaignData.constituency : '';
+        const electionDate = (window.campaignData && window.campaignData.electionDate) ? window.campaignData.electionDate : '';
+        const electionTime = (window.campaignData && window.campaignData.electionTime) ? window.campaignData.electionTime : '08:30';
         try {
             await setDoc(doc(window.db, 'sharedVoterSnapshots', token), {
                 password,
                 voters,
                 createdBy: window.userEmail,
-                createdAt: serverTimestamp()
+                createdAt: serverTimestamp(),
+                constituency,
+                recipientName: name,
+                electionDate,
+                electionTime
             });
         } catch (snapErr) {
             console.error('Share snapshot write failed:', snapErr);
