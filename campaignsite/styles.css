@@ -4317,6 +4317,11 @@ body.sidebar-collapsed .main-content {
     text-overflow: ellipsis;
 }
 
+#share-voter-table-container .data-table th.share-voter-col-candidates,
+#share-voter-table-container .data-table td.share-voter-col-candidates {
+    display: none !important;
+}
+
 #share-voter-table-container .data-table tbody tr {
     transition: background 0.15s;
 }
