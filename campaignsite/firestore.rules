@@ -713,7 +713,7 @@ service cloud.firestore {
       allow read: if true;
       allow create, delete: if request.auth != null;
       allow update: if request.auth != null
-        || (request.auth == null
+        || (request.auth == null && resource != null
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['pledgeUpdates']));
       allow list: if request.auth != null;
     }

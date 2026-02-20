@@ -275,9 +275,11 @@ async function generateShareVoterLink() {
         const allDocs = [];
         const seen = new Set();
         try {
-            const emailSnap = await getDocs(query(collection(window.db, 'voters'), where('email', '==', window.userEmail)));
+            const [emailSnap, campaignSnap] = await Promise.all([
+                getDocs(query(collection(window.db, 'voters'), where('email', '==', window.userEmail))),
+                getDocs(query(collection(window.db, 'voters'), where('campaignEmail', '==', window.userEmail)))
+            ]);
             emailSnap.docs.forEach(d => { if (!seen.has(d.id)) { seen.add(d.id); allDocs.push(d); } });
-            const campaignSnap = await getDocs(query(collection(window.db, 'voters'), where('campaignEmail', '==', window.userEmail)));
             campaignSnap.docs.forEach(d => { if (!seen.has(d.id)) { seen.add(d.id); allDocs.push(d); } });
         } catch (qErr) {
             console.warn('Share snapshot: voter query failed', qErr);
@@ -287,15 +289,18 @@ async function generateShareVoterLink() {
         const pledgeByVoter = {};
         if (voterIds.length > 0) {
             try {
+                const pledgeBatches = [];
                 for (let i = 0; i < voterIds.length; i += 30) {
                     const batch = voterIds.slice(i, i + 30);
-                    const pq = query(collection(window.db, 'pledges'), where('email', '==', window.userEmail), where('voterDocumentId', 'in', batch));
-                    const pSnap = await getDocs(pq);
+                    pledgeBatches.push(getDocs(query(collection(window.db, 'pledges'), where('email', '==', window.userEmail), where('voterDocumentId', 'in', batch))));
+                }
+                const pledgeSnaps = await Promise.all(pledgeBatches);
+                pledgeSnaps.forEach(pSnap => {
                     pSnap.docs.forEach(pd => {
                         const v = pd.data().voterDocumentId;
                         if (v) pledgeByVoter[v] = (pd.data().pledge || 'undecided').toLowerCase().replace('negative', 'no');
                     });
-                }
+                });
             } catch (_) {}
         }
         const voters = filtered.map(v => ({
@@ -385,19 +390,19 @@ async function generateShareVoterLink() {
             }
         })();
 
-        try {
-            await addDoc(collection(window.db, 'sharedVoterLinks'), linkData);
-        } catch (addErr) {
-            console.warn('Could not add to links list:', addErr);
-            if (errEl) {
-                errEl.textContent = 'Link and password are ready above. Could not add to your links list: ' + (addErr.message || addErr.code || '');
-                errEl.style.display = 'block';
-            }
-        }
-
-        await loadSharedVoterLinks();
         if (nameInput) nameInput.value = '';
         if (window.showSuccess) window.showSuccess('Link generated. Share the link and password with the recipient.', 'Success');
+
+        Promise.all([
+            addDoc(collection(window.db, 'sharedVoterLinks'), linkData).catch(addErr => {
+                console.warn('Could not add to links list:', addErr);
+                if (errEl) {
+                    errEl.textContent = 'Link and password are ready above. Could not add to your links list: ' + (addErr.message || addErr.code || '');
+                    errEl.style.display = 'block';
+                }
+            }),
+            loadSharedVoterLinks()
+        ]).catch(() => {});
     } catch (e) {
         console.error('generateShareVoterLink:', e);
         if (errEl) {

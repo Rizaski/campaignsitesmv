@@ -3492,6 +3492,12 @@ function renderShareVoterList() {
         if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
         return n.substring(0, 2).toUpperCase();
     }
+    function getSharePledgeRowStyle(v) {
+        const p = (v.pledge || 'undecided').toLowerCase();
+        if (p === 'yes') return 'background-color: rgba(40, 167, 69, 0.15);';
+        if (p === 'no') return 'background-color: rgba(255, 193, 7, 0.35);';
+        return 'background-color: rgba(108, 117, 125, 0.12);';
+    }
     function rowCells(v, index) {
         const pledge = (v.pledge || 'undecided').toLowerCase();
         const imgUrl = (v.imageUrl || v.image || '').trim();
@@ -3537,7 +3543,7 @@ function renderShareVoterList() {
         Object.keys(grouped).sort().forEach(key => {
             rows.push('<tr style="background: var(--primary-50); font-weight: 600;"><td colspan="8" style="padding: 10px 12px;">' + escapeHtml(groupLabel + ': ' + key) + '</td></tr>');
             grouped[key].forEach(v => {
-                rows.push('<tr>' + rowCells(v, index) + '</tr>');
+                rows.push('<tr style="' + getSharePledgeRowStyle(v) + '">' + rowCells(v, index) + '</tr>');
                 index++;
             });
         });
@@ -3549,7 +3555,7 @@ function renderShareVoterList() {
         const hasFilters = searchTerm || filterIslandVal || filterConstituencyVal || filterBallotVal || filterGenderVal;
         tbody.innerHTML = pageRows.length === 0
             ? '<tr><td colspan="8" style="text-align: center; padding: 24px; color: var(--text-light);">' + (hasFilters ? 'No voters match the filters.' : 'No voters in this list.') + '</td></tr>'
-            : pageRows.map((v, i) => '<tr>' + rowCells(v, start + i) + '</tr>').join('');
+            : pageRows.map((v, i) => '<tr style="' + getSharePledgeRowStyle(v) + '">' + rowCells(v, start + i) + '</tr>').join('');
         tbody.querySelectorAll('.share-pledge-select').forEach(el => {
             el.addEventListener('change', function() { window.updateSharePledge(this.dataset.voterId, this.value); });
         });
@@ -3599,6 +3605,7 @@ window.updateSharePledge = async function(voterId, value) {
         if (window._shareVotersList) {
             const v = window._shareVotersList.find(x => x.id === voterId);
             if (v) v.pledge = value;
+            if (typeof renderShareVoterList === 'function') renderShareVoterList();
         }
         if (window.showSuccess) window.showSuccess('Pledge updated.', 'Saved');
     } catch (err) {
