@@ -21,6 +21,57 @@ PORT = 8000
 _share_sessions = {}
 _SHARE_SESSION_TTL = 24 * 3600  # 24 hours
 
+def _do_share_verify(db, token, password):
+    """Run Firestore verify logic; returns (status_code, response_dict)."""
+    from datetime import datetime
+    try:
+        links_ref = db.collection('sharedVoterLinks')
+        query = links_ref.where('token', '==', token).limit(1)
+        docs = list(query.stream())
+        print(f"[Server] /api/share/verify token_len={len(token)} docs_found={len(docs)}")
+        if not docs:
+            return 200, {'ok': False, 'error': 'Invalid link or password'}
+        doc = docs[0]
+        link_data = doc.to_dict()
+        stored_pw = link_data.get('password')
+        if stored_pw is not None and not isinstance(stored_pw, str):
+            stored_pw = str(stored_pw)
+        stored_pw = (stored_pw or '').strip()
+        if stored_pw.lower() != password.lower():
+            print(f"[Server] /api/share/verify password_mismatch")
+            return 200, {'ok': False, 'error': 'Invalid link or password'}
+        created_by = link_data.get('createdBy', '')
+        recipient_name = link_data.get('recipientName', '')
+        recipient_island = link_data.get('recipientIsland', '')
+        access_log = list(link_data.get('accessLog') or [])
+        access_log.append({
+            'accessedAt': datetime.utcnow(),
+            'recipientName': recipient_name,
+            'recipientIsland': recipient_island
+        })
+        session_id = str(uuid.uuid4())
+        # Update access log in background so we return the session immediately
+        def _update_log():
+            try:
+                doc.reference.update({'accessLog': access_log})
+            except Exception:
+                pass
+        import threading
+        t = threading.Thread(target=_update_log, daemon=True)
+        t.start()
+        recipient_agent_id = (link_data.get('recipientAgentId') or '').strip() or None
+        _share_sessions[session_id] = {
+            'token': token,
+            'createdBy': created_by,
+            'expiry': time.time() + _SHARE_SESSION_TTL,
+            'recipientIsland': recipient_island or None,
+            'recipientAgentId': recipient_agent_id
+        }
+        return 200, {'ok': True, 'sessionToken': session_id, 'session': session_id}
+    except Exception as e:
+        print(f"[Server] /api/share/verify error: {e}")
+        return 500, {'ok': False, 'error': str(e)}
+
 def _get_firestore():
     """Optional Firebase Admin; returns None if not configured."""
     try:
@@ -152,20 +203,25 @@ class MyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                 voters_ref = db.collection('voters')
                 recipient_agent_id = sess.get('recipientAgentId') or None
                 recipient_island = sess.get('recipientIsland') or None
-                if recipient_agent_id:
-                    q = voters_ref.where('email', '==', created_by).where('assignedAgentId', '==', recipient_agent_id).limit(5000)
-                elif recipient_island:
-                    q = voters_ref.where('email', '==', created_by).where('island', '==', recipient_island).limit(5000)
-                else:
-                    q = voters_ref.where('email', '==', created_by).limit(5000)
-                docs = list(q.stream())
-                voters = []
-                voter_ids = []
-                for d in docs:
-                    data = d.to_dict()
-                    data['id'] = d.id
-                    voter_ids.append(d.id)
-                    voters.append(data)
+                # Query by both email and campaignEmail (voters may use either field)
+                seen = {}
+                for field in ('email', 'campaignEmail'):
+                    if recipient_agent_id:
+                        q = voters_ref.where(field, '==', created_by).where('assignedAgentId', '==', recipient_agent_id).limit(5000)
+                    elif recipient_island:
+                        q = voters_ref.where(field, '==', created_by).where('island', '==', recipient_island).limit(5000)
+                    else:
+                        q = voters_ref.where(field, '==', created_by).limit(5000)
+                    try:
+                        for d in q.stream():
+                            if d.id not in seen:
+                                data = d.to_dict()
+                                data['id'] = d.id
+                                seen[d.id] = data
+                    except Exception as qe:
+                        print(f"[Server] /api/share/voters query by {field}: {qe}")
+                voters = list(seen.values())
+                voter_ids = [v['id'] for v in voters]
                 pledge_by_voter = {}
                 if voter_ids:
                     pledges_ref = db.collection('pledges')
@@ -249,59 +305,14 @@ class MyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                 self.wfile.write(json.dumps({'ok': False, 'error': 'Share backend not configured'}).encode())
                 return
             try:
-                links_ref = db.collection('sharedVoterLinks')
-                query = links_ref.where('token', '==', token).limit(1)
-                docs = list(query.stream())
-                print(f"[Server] /api/share/verify token_len={len(token)} docs_found={len(docs)}")
-                if not docs:
-                    self.send_response(200)
-                    self.send_header('Content-type', 'application/json')
-                    self.end_headers()
-                    self.wfile.write(json.dumps({'ok': False, 'error': 'Invalid link or password'}).encode())
-                    return
-                doc = docs[0]
-                link_data = doc.to_dict()
-                stored_pw = link_data.get('password')
-                if stored_pw is not None and not isinstance(stored_pw, str):
-                    stored_pw = str(stored_pw)
-                stored_pw = (stored_pw or '').strip()
-                if stored_pw != password:
-                    print(f"[Server] /api/share/verify password_mismatch (stored_len={len(stored_pw)} sent_len={len(password)})")
-                    self.send_response(200)
-                    self.send_header('Content-type', 'application/json')
-                    self.end_headers()
-                    self.wfile.write(json.dumps({'ok': False, 'error': 'Invalid link or password'}).encode())
-                    return
-                created_by = link_data.get('createdBy', '')
-                recipient_name = link_data.get('recipientName', '')
-                recipient_island = link_data.get('recipientIsland', '')
-                access_log = list(link_data.get('accessLog') or [])
-                from datetime import datetime
-                access_log.append({
-                    'accessedAt': datetime.utcnow(),
-                    'recipientName': recipient_name,
-                    'recipientIsland': recipient_island
-                })
-                doc.reference.update({'accessLog': access_log})
-                session_id = str(uuid.uuid4())
-                recipient_agent_id = (link_data.get('recipientAgentId') or '').strip() or None
-                _share_sessions[session_id] = {
-                    'token': token,
-                    'createdBy': created_by,
-                    'expiry': time.time() + _SHARE_SESSION_TTL,
-                    'recipientIsland': recipient_island or None,
-                    'recipientAgentId': recipient_agent_id
-                }
-                self.send_response(200)
-                self.send_header('Content-type', 'application/json')
-                self.end_headers()
-                self.wfile.write(json.dumps({'ok': True, 'sessionToken': session_id, 'session': session_id}).encode())
+                status, resp = _do_share_verify(db, token, password)
             except Exception as e:
                 print(f"[Server] /api/share/verify error: {e}")
-                self.send_response(500)
-                self.send_header('Content-type', 'application/json')
-                self.end_headers()
-                self.wfile.write(json.dumps({'ok': False, 'error': str(e)}).encode())
+                status, resp = 500, {'ok': False, 'error': str(e)}
+            self.send_response(status)
+            self.send_header('Content-type', 'application/json')
+            self.end_headers()
+            self.wfile.write(json.dumps(resp).encode())
             return
 
         if parsed_path == '/api/share/pledge':
@@ -377,13 +388,17 @@ class MyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         self.send_header('Access-Control-Allow-Headers', '*')
         super().end_headers()
 
+class ThreadedHTTPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
+    allow_reuse_address = True
+
+
 def main():
     # Change to the directory where this script is located
     os.chdir(Path(__file__).parent)
     
     Handler = MyHTTPRequestHandler
     
-    with socketserver.TCPServer(("", PORT), Handler) as httpd:
+    with ThreadedHTTPServer(("", PORT), Handler) as httpd:
         url = f"http://localhost:{PORT}/"
         print("=" * 60)
         print(f"Server started at http://localhost:{PORT}")
@@ -392,6 +407,13 @@ def main():
         _share_ready = _get_firestore() is not None
         if _share_ready:
             print("Share API: enabled (Firebase connected).")
+            try:
+                db = _get_firestore()
+                if db:
+                    list(db.collection('sharedVoterLinks').limit(1).stream())
+                print("Share API: Firestore pre-warmed.")
+            except Exception as e:
+                print(f"Share API: pre-warm skipped ({e})")
         else:
             key_path = Path(__file__).parent / 'campaignsite' / 'serviceAccountKey.json'
             print("Share API: disabled (share links will show 'not configured').")

@@ -2,6 +2,15 @@
 
 The **Share voter database** feature (temporary password links) needs the server to connect to Firebase. If you see "Share feature is not configured on the server", do the following.
 
+**Required:** Install the Firebase Admin SDK (once per Python environment):
+```bash
+pip install firebase-admin
+```
+If you use a specific Python (e.g. from start-server.ps1), run:
+```bash
+"C:\Users\Empower\AppData\Local\Programs\Python\Python313\python.exe" -m pip install firebase-admin
+```
+
 ## 1. Get a Firebase Service Account Key
 
 1. Open [Firebase Console](https://console.firebase.google.com/) and select the **same project** your app uses (e.g. `version6-7c39b` from your app’s Firebase config).

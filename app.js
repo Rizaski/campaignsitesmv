@@ -3372,58 +3372,73 @@ async function handleShareVoterView(shareToken) {
 
     window._shareToken = shareToken;
 
-    const form = document.getElementById('share-voter-password-form');
     const errorEl = document.getElementById('share-voter-password-error');
-    if (form) {
-        form.onsubmit = null;
-        form.onsubmit = async (e) => {
-            e.preventDefault();
-            if (errorEl) { errorEl.style.display = 'none'; errorEl.textContent = ''; }
-            const passwordInput = document.getElementById('share-voter-password-input');
-            const password = passwordInput ? passwordInput.value.trim() : '';
-            if (!password) {
-                if (errorEl) { errorEl.textContent = 'Please enter the temporary password.'; errorEl.style.display = 'block'; }
-                return;
-            }
-            try {
-                const base = window.location.origin;
-                const res = await fetch(base + '/api/share/verify', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ token: (shareToken || '').trim(), password: password })
-                });
-                const data = res.ok ? await res.json().catch(() => ({})) : null;
-                if (res.ok && data && data.ok) {
-                    const sessionToken = data.sessionToken || data.session;
-                    if (sessionToken) {
-                        sessionStorage.setItem('shareSession_' + shareToken, JSON.stringify({ sessionToken: sessionToken }));
-                    }
-                    if (passwordWrap) passwordWrap.style.display = 'none';
-                    if (listWrap) listWrap.style.display = 'block';
-                    if (typeof window.loadShareVoterList === 'function') {
-                        window.loadShareVoterList();
-                    } else {
-                        const loadingEl = document.getElementById('share-voter-loading');
-                        const tableContainer = document.getElementById('share-voter-table-container');
-                        if (loadingEl) loadingEl.textContent = 'Share backend not configured. Voter list cannot be loaded.';
-                        if (tableContainer) tableContainer.style.display = 'none';
-                    }
-                    const refreshBtn = document.getElementById('share-voter-refresh-btn');
-                    if (refreshBtn) refreshBtn.onclick = () => { if (window.loadShareVoterList) window.loadShareVoterList(); };
-                } else {
-                    if (errorEl) {
-                        errorEl.textContent = res.status === 503 ? 'Share feature is not configured on the server.' : (data && data.error) || 'Invalid password or link.';
-                        errorEl.style.display = 'block';
-                    }
+    const passwordInput = document.getElementById('share-voter-password-input');
+    const submitBtn = document.getElementById('share-voter-access-btn');
+
+    async function doVerify() {
+        if (errorEl) { errorEl.style.display = 'none'; errorEl.textContent = ''; }
+        const base = window.location.origin;
+        if (!base || base === 'null' || base.startsWith('file:')) {
+            if (errorEl) { errorEl.textContent = 'Open the share link in your browser (e.g. paste the full link in the address bar). Do not open the HTML file directly.'; errorEl.style.display = 'block'; }
+            return;
+        }
+        const password = passwordInput ? passwordInput.value.trim() : '';
+        if (!password) {
+            if (errorEl) { errorEl.textContent = 'Please enter the temporary password.'; errorEl.style.display = 'block'; }
+            return;
+        }
+        if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Verifying…'; }
+        const verifyUrl = base + '/api/share/verify';
+        try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 30000);
+            const res = await fetch(verifyUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token: (shareToken || '').trim(), password: password }),
+                signal: controller.signal
+            });
+            clearTimeout(timeoutId);
+            const text = await res.text();
+            let data = {};
+            try { data = text ? JSON.parse(text) : {}; } catch (_) {}
+            if (res.ok && data && data.ok) {
+                const sessionToken = data.sessionToken || data.session;
+                if (sessionToken) {
+                    sessionStorage.setItem('shareSession_' + shareToken, JSON.stringify({ sessionToken: sessionToken }));
                 }
-            } catch (err) {
+                if (passwordWrap) passwordWrap.style.display = 'none';
+                if (listWrap) listWrap.style.display = 'block';
+                if (typeof window.loadShareVoterList === 'function') {
+                    window.loadShareVoterList();
+                } else {
+                    const loadingEl = document.getElementById('share-voter-loading');
+                    const tableContainer = document.getElementById('share-voter-table-container');
+                    if (loadingEl) loadingEl.textContent = 'Share backend not configured. Voter list cannot be loaded.';
+                    if (tableContainer) tableContainer.style.display = 'none';
+                }
+                const refreshBtn = document.getElementById('share-voter-refresh-btn');
+                if (refreshBtn) refreshBtn.onclick = () => { if (window.loadShareVoterList) window.loadShareVoterList(); };
+            } else {
                 if (errorEl) {
-                    errorEl.textContent = 'Could not verify. Check your connection or try again.';
+                    errorEl.textContent = res.status === 503 ? 'Share feature is not configured on the server.' : (data && data.error) || 'Invalid password or link.';
                     errorEl.style.display = 'block';
                 }
             }
-        };
+        } catch (err) {
+            console.error('Share verify error:', err);
+            if (errorEl) {
+                errorEl.textContent = err.name === 'AbortError' ? 'Request timed out. Restart the server and try again.' : 'Could not verify. Check your connection.';
+                errorEl.style.display = 'block';
+            }
+        } finally {
+            if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Access list'; }
+        }
     }
+
+    if (submitBtn) submitBtn.addEventListener('click', doVerify);
+    if (passwordInput) passwordInput.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); doVerify(); } });
 
     const existingSession = sessionStorage.getItem('shareSession_' + shareToken);
     if (existingSession) {
@@ -3478,12 +3493,18 @@ window.loadShareVoterList = async function () {
     const base = window.location.origin;
     try {
         const r = await fetch(base + '/api/share/voters?session=' + encodeURIComponent(sessionToken));
-        if (!r.ok) {
-            const err = await r.json().catch(() => ({}));
-            if (loadingEl) loadingEl.textContent = (err.error || 'Failed to load voters.') + ' Try refreshing.';
+        const text = await r.text();
+        let data = {};
+        try {
+            data = text ? JSON.parse(text) : {};
+        } catch (_) {
+            if (loadingEl) loadingEl.textContent = (r.ok ? 'Invalid response from server.' : (r.status + ' ' + (r.statusText || ''))) + ' Try again or re-enter the share password.';
             return;
         }
-        const data = await r.json();
+        if (!r.ok) {
+            if (loadingEl) loadingEl.textContent = (data.error || 'Failed to load voters.') + ' Try refreshing or re-enter the share password.';
+            return;
+        }
         const voters = data.voters || [];
         if (loadingEl) loadingEl.style.display = 'none';
         if (tableContainer) tableContainer.style.display = 'block';
@@ -3519,7 +3540,7 @@ window.loadShareVoterList = async function () {
         }
     } catch (err) {
         console.error('loadShareVoterList:', err);
-        if (loadingEl) loadingEl.textContent = 'Could not load voters. Check your connection and try again.';
+        if (loadingEl) loadingEl.textContent = 'Could not load voters. Check your connection and that you\'re using the same link (e.g. ' + base + '). Try re-entering the share password.';
         if (tableContainer) tableContainer.style.display = 'none';
     }
 };

@@ -58,20 +58,24 @@ class handler(BaseHTTPRequestHandler):
             voters_ref = db.collection("voters")
             recipient_agent_id = sess.get("recipientAgentId") or None
             recipient_island = sess.get("recipientIsland") or None
-            if recipient_agent_id:
-                q = voters_ref.where("email", "==", created_by).where("assignedAgentId", "==", recipient_agent_id).limit(5000)
-            elif recipient_island:
-                q = voters_ref.where("email", "==", created_by).where("island", "==", recipient_island).limit(5000)
-            else:
-                q = voters_ref.where("email", "==", created_by).limit(5000)
-            docs = list(q.stream())
-            voters = []
-            voter_ids = []
-            for d in docs:
-                data = d.to_dict()
-                data["id"] = d.id
-                voter_ids.append(d.id)
-                voters.append(data)
+            seen = {}
+            for field in ("email", "campaignEmail"):
+                if recipient_agent_id:
+                    q = voters_ref.where(field, "==", created_by).where("assignedAgentId", "==", recipient_agent_id).limit(5000)
+                elif recipient_island:
+                    q = voters_ref.where(field, "==", created_by).where("island", "==", recipient_island).limit(5000)
+                else:
+                    q = voters_ref.where(field, "==", created_by).limit(5000)
+                try:
+                    for d in q.stream():
+                        if d.id not in seen:
+                            data = d.to_dict()
+                            data["id"] = d.id
+                            seen[d.id] = data
+                except Exception as qe:
+                    pass
+            voters = list(seen.values())
+            voter_ids = [v["id"] for v in voters]
             pledge_by_voter = {}
             if voter_ids:
                 pledges_ref = db.collection("pledges")
