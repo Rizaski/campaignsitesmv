@@ -322,10 +322,19 @@ async function generateShareVoterLink() {
         const constituency = (window.campaignData && window.campaignData.constituency) ? window.campaignData.constituency : '';
         const electionDate = (window.campaignData && window.campaignData.electionDate) ? window.campaignData.electionDate : '';
         const electionTime = (window.campaignData && window.campaignData.electionTime) ? window.campaignData.electionTime : '08:30';
+        let candidates = [];
+        try {
+            const candSnap = await getDocs(query(collection(window.db, 'candidates'), where('email', '==', window.userEmail)));
+            candidates = candSnap.docs.map(d => {
+                const data = d.data();
+                return { id: d.id, candidateId: data.candidateId || d.id, name: data.name || '', position: data.position || '' };
+            });
+        } catch (_) {}
         try {
             await setDoc(doc(window.db, 'sharedVoterSnapshots', token), {
                 password,
                 voters,
+                candidates,
                 createdBy: window.userEmail,
                 createdAt: serverTimestamp(),
                 constituency,
