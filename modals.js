@@ -98,72 +98,43 @@ function getFormTemplate(type) {
     return templates[type] || '<p>Unknown form type</p>';
 }
 
-// Share Voter List modal: existing links table + generate new link form
+// Share Voter List modal: full voter database access via link + temporary password
 function getShareVoterListFormTemplate() {
     return `
         <div id="share-voter-list-content">
-            <p style="color: var(--text-light); font-size: 13px; margin-bottom: 16px;">Share the voter database with a link and temporary password. Recipients can view the list and record pledges. Access is logged below.</p>
+            <p style="color: var(--text-light); font-size: 13px; margin-bottom: 16px;">Share <strong>full voter database</strong> access with a link and temporary password. Recipients can view the entire list and record pledges. Access is logged below.</p>
             <div class="form-group" style="margin-bottom: 20px;">
-                <label style="font-weight: 600; margin-bottom: 8px; display: block;">Existing users with access</label>
+                <label style="font-weight: 600; margin-bottom: 8px; display: block;">Existing links</label>
                 <div id="share-voter-links-table-wrap" style="overflow-x: auto; border: 1px solid var(--border-color); border-radius: 8px; min-height: 80px;">
                     <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
                         <thead>
                             <tr style="background: var(--light-color);">
                                 <th style="padding: 10px 12px; text-align: left;">Recipient name</th>
-                                <th style="padding: 10px 12px; text-align: left;">Island</th>
-                                <th style="padding: 10px 12px; text-align: left;">List scope</th>
                                 <th style="padding: 10px 12px; text-align: left;">Created</th>
                                 <th style="padding: 10px 12px; text-align: left;">Last access</th>
                                 <th style="padding: 10px 12px; text-align: left;">Actions</th>
                             </tr>
                         </thead>
                         <tbody id="share-voter-links-tbody">
-                            <tr><td colspan="6" style="padding: 20px; text-align: center; color: var(--text-light);">Loading...</td></tr>
+                            <tr><td colspan="4" style="padding: 20px; text-align: center; color: var(--text-light);">Loading...</td></tr>
                         </tbody>
                     </table>
                 </div>
             </div>
             <hr style="border: none; border-top: 1px solid var(--border-color); margin: 20px 0;">
             <div class="form-group">
-                <label style="font-weight: 600; margin-bottom: 8px; display: block;">Generate new link</label>
-                <p style="font-size: 12px; color: var(--text-light); margin-bottom: 12px;">Enter the recipient's name and island. Optionally restrict the list to an island or to one agent's assigned voters (same as agent portal).</p>
+                <label style="font-weight: 600; margin-bottom: 8px; display: block;">Generate new link (full database access)</label>
+                <p style="font-size: 12px; color: var(--text-light); margin-bottom: 12px;">Enter the recipient's name. The link will give access to the full voter database.</p>
                 <div style="display: grid; gap: 12px;">
                     <div>
                         <label for="share-recipient-name">Recipient name *</label>
                         <input type="text" id="share-recipient-name" placeholder="Full name" style="width: 100%; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: 8px;">
                     </div>
-                    <div>
-                        <label for="share-recipient-island">Island *</label>
-                        <select id="share-recipient-island" style="width: 100%; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: 8px;">
-                            <option value="">Select island</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label for="share-recipient-agent">Restrict to agent's list (optional)</label>
-                        <select id="share-recipient-agent" style="width: 100%; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: 8px;">
-                            <option value="">All voters (no restriction)</option>
-                        </select>
-                        <small style="color: var(--text-light); font-size: 11px;">If set, recipient sees only this agent's assigned voters (same as agent portal).</small>
-                    </div>
-                    <button type="button" id="share-generate-link-btn" class="btn-primary">Generate link</button>
+                    <button type="button" id="share-generate-link-btn" class="btn-primary" onclick="generateShareVoterLink()">Generate link</button>
                 </div>
             </div>
-            <div id="share-link-result" style="display: none; margin-top: 16px; padding: 16px; background: var(--light-color); border-radius: 8px; border: 1px solid var(--border-color);">
-                <p style="font-weight: 600; margin-bottom: 12px;">Share this link and password with the recipient:</p>
-                <div style="margin-bottom: 10px;">
-                    <label style="font-size: 11px; color: var(--text-light);">Link</label>
-                    <div style="display: flex; gap: 8px; align-items: center;">
-                        <input type="text" id="share-link-url" readonly style="flex: 1; padding: 8px 12px; font-size: 12px; border: 1px solid var(--border-color); border-radius: 6px; background: white;">
-                        <button type="button" class="icon-btn" onclick="copyShareLinkUrl()" title="Copy link">Copy</button>
-                    </div>
-                </div>
-                <div>
-                    <label style="font-size: 11px; color: var(--text-light);">Temporary password</label>
-                    <div style="display: flex; gap: 8px; align-items: center;">
-                        <input type="text" id="share-link-password" readonly style="flex: 1; padding: 8px 12px; font-size: 12px; border: 1px solid var(--border-color); border-radius: 6px; background: white;">
-                        <button type="button" class="icon-btn" onclick="copyShareLinkPassword()" title="Copy password">Copy</button>
-                    </div>
-                </div>
+            <div id="share-link-output-box" style="margin-top: 16px; padding: 16px; background: #e8f4f8; border-radius: 8px; border: 2px solid var(--primary-color); min-height: 60px; box-sizing: border-box;">
+                <p id="share-link-output-placeholder" style="margin: 0; color: var(--text-light); font-size: 13px;">Generated link and temporary password will appear here after you click Generate link.</p>
             </div>
             <div id="modal-error" class="error-message" style="display: none;"></div>
             <div class="modal-footer" style="margin-top: 20px;">
@@ -185,39 +156,6 @@ function safeShareLinkDateLabel(val) {
 
 async function setupShareVoterListModal() {
     await loadSharedVoterLinks();
-    const islandSelect = document.getElementById('share-recipient-island');
-    if (islandSelect && window.campaignData && window.campaignData.constituency && window.maldivesData && window.maldivesData.constituencyIslands) {
-        const islands = window.maldivesData.constituencyIslands[window.campaignData.constituency] || [];
-        islandSelect.innerHTML = '<option value="">Select island</option>';
-        islands.sort().forEach(island => {
-            const opt = document.createElement('option');
-            opt.value = island;
-            opt.textContent = island;
-            islandSelect.appendChild(opt);
-        });
-    }
-    const agentSelect = document.getElementById('share-recipient-agent');
-    if (agentSelect && window.db && window.userEmail) {
-        try {
-            const { collection, query, where, getDocs } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
-            let agentsQuery = query(collection(window.db, 'agents'), where('email', '==', window.userEmail));
-            if (window.islandUserData && window.islandUserData.island) {
-                agentsQuery = query(collection(window.db, 'agents'), where('island', '==', window.islandUserData.island));
-            }
-            const snap = await getDocs(agentsQuery);
-            agentSelect.innerHTML = '<option value="">All voters (no restriction)</option>';
-            snap.docs.forEach(d => {
-                const data = d.data();
-                const name = data.name || d.id;
-                const opt = document.createElement('option');
-                opt.value = d.id;
-                opt.textContent = name;
-                agentSelect.appendChild(opt);
-            });
-        } catch (e) {
-            console.warn('Could not load agents for share modal:', e);
-        }
-    }
     const btn = document.getElementById('share-generate-link-btn');
     if (btn) btn.onclick = () => generateShareVoterLink();
 }
@@ -226,7 +164,7 @@ async function loadSharedVoterLinks() {
     const tbody = document.getElementById('share-voter-links-tbody');
     if (!tbody) return;
     if (!window.db || !window.userEmail) {
-        tbody.innerHTML = '<tr><td colspan="6" style="padding: 20px; color: var(--text-light);">Please log in.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="4" style="padding: 20px; color: var(--text-light);">Please log in.</td></tr>';
         return;
     }
     try {
@@ -239,7 +177,7 @@ async function loadSharedVoterLinks() {
         const snap = await getDocs(q);
         const links = snap.docs.map(d => ({ id: d.id, ...d.data() }));
         if (links.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="6" style="padding: 20px; color: var(--text-light);">No shared links yet. Generate one below.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="4" style="padding: 20px; color: var(--text-light);">No shared links yet. Generate one below.</td></tr>';
             return;
         }
         tbody.innerHTML = links.map(link => {
@@ -249,11 +187,8 @@ async function loadSharedVoterLinks() {
                 : 'Never';
             const baseUrl = window.location.origin + window.location.pathname + (window.location.pathname.endsWith('/') ? '' : '/') + (window.location.pathname.endsWith('.html') ? '' : 'index.html');
             const url = baseUrl + (baseUrl.indexOf('?') >= 0 ? '&' : '?') + 'share=' + encodeURIComponent(link.token);
-            const scope = link.recipientAgentId ? "Agent's list" : (link.recipientIsland ? "Island only" : "All");
             return `<tr>
                 <td style="padding: 10px 12px;">${(link.recipientName || '—')}</td>
-                <td style="padding: 10px 12px;">${(link.recipientIsland || '—')}</td>
-                <td style="padding: 10px 12px;">${scope}</td>
                 <td style="padding: 10px 12px;">${created}</td>
                 <td style="padding: 10px 12px;">${lastAccess}</td>
                 <td style="padding: 10px 12px;">
@@ -274,7 +209,7 @@ async function loadSharedVoterLinks() {
                 return bt - at;
             });
             if (links.length === 0) {
-                tbody.innerHTML = '<tr><td colspan="6" style="padding: 20px; color: var(--text-light);">No shared links yet.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="4" style="padding: 20px; color: var(--text-light);">No shared links yet.</td></tr>';
                 return;
             }
             tbody.innerHTML = links.map(link => {
@@ -284,11 +219,8 @@ async function loadSharedVoterLinks() {
                     : 'Never';
                 const baseUrl = window.location.origin + window.location.pathname + (window.location.pathname.endsWith('/') ? '' : '/') + (window.location.pathname.endsWith('.html') ? '' : 'index.html');
                 const url = baseUrl + (baseUrl.indexOf('?') >= 0 ? '&' : '?') + 'share=' + encodeURIComponent(link.token);
-                const scope = link.recipientAgentId ? "Agent's list" : (link.recipientIsland ? "Island only" : "All");
                 return `<tr>
                     <td style="padding: 10px 12px;">${(link.recipientName || '—')}</td>
-                    <td style="padding: 10px 12px;">${(link.recipientIsland || '—')}</td>
-                    <td style="padding: 10px 12px;">${scope}</td>
                     <td style="padding: 10px 12px;">${created}</td>
                     <td style="padding: 10px 12px;">${lastAccess}</td>
                     <td style="padding: 10px 12px;">
@@ -298,7 +230,7 @@ async function loadSharedVoterLinks() {
                 </tr>`;
             }).join('');
         } else {
-            tbody.innerHTML = '<tr><td colspan="6" style="padding: 20px; color: var(--danger-color);">Error loading links.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="4" style="padding: 20px; color: var(--danger-color);">Error loading links.</td></tr>';
         }
     }
 }
@@ -312,53 +244,166 @@ function randomToken(len) {
 
 async function generateShareVoterLink() {
     const nameInput = document.getElementById('share-recipient-name');
-    const islandSelect = document.getElementById('share-recipient-island');
     const errEl = document.getElementById('modal-error');
-    const resultEl = document.getElementById('share-link-result');
-    const urlInput = document.getElementById('share-link-url');
-    const pwInput = document.getElementById('share-link-password');
-    if (errEl) errEl.style.display = 'none';
+    const btn = document.getElementById('share-generate-link-btn');
+    if (errEl) { errEl.style.display = 'none'; errEl.textContent = ''; }
     const name = nameInput && nameInput.value ? nameInput.value.trim() : '';
-    const island = islandSelect && islandSelect.value ? islandSelect.value.trim() : '';
-    const agentSelect = document.getElementById('share-recipient-agent');
-    const recipientAgentId = (agentSelect && agentSelect.value) ? agentSelect.value.trim() : '';
-    if (!name || !island) {
-        if (errEl) { errEl.textContent = 'Please enter recipient name and island.'; errEl.style.display = 'block'; }
+    if (!name) {
+        if (errEl) { errEl.textContent = 'Please enter recipient name.'; errEl.style.display = 'block'; }
         return;
     }
     if (!window.db || !window.userEmail) {
         if (errEl) { errEl.textContent = 'Not logged in.'; errEl.style.display = 'block'; }
         return;
     }
+    if (btn) { btn.disabled = true; btn.textContent = 'Generating…'; }
     try {
-        const { collection, addDoc, serverTimestamp } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
+        const { collection, addDoc, doc, setDoc, serverTimestamp, query, where, getDocs } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
         const token = randomToken(32);
         const password = randomToken(8);
         const linkData = {
             createdBy: window.userEmail,
             recipientName: name,
-            recipientIsland: island,
+            recipientIsland: '',
             token,
             password,
             createdAt: serverTimestamp(),
             accessLog: []
         };
-        if (recipientAgentId) linkData.recipientAgentId = recipientAgentId;
-        await addDoc(collection(window.db, 'sharedVoterLinks'), linkData);
+
+        const allDocs = [];
+        const seen = new Set();
+        try {
+            const emailSnap = await getDocs(query(collection(window.db, 'voters'), where('email', '==', window.userEmail)));
+            emailSnap.docs.forEach(d => { if (!seen.has(d.id)) { seen.add(d.id); allDocs.push(d); } });
+            const campaignSnap = await getDocs(query(collection(window.db, 'voters'), where('campaignEmail', '==', window.userEmail)));
+            campaignSnap.docs.forEach(d => { if (!seen.has(d.id)) { seen.add(d.id); allDocs.push(d); } });
+        } catch (qErr) {
+            console.warn('Share snapshot: voter query failed', qErr);
+        }
+        const filtered = allDocs.map(d => ({ id: d.id, ...d.data() }));
+        const voterIds = filtered.map(v => v.id);
+        const pledgeByVoter = {};
+        if (voterIds.length > 0) {
+            try {
+                for (let i = 0; i < voterIds.length; i += 30) {
+                    const batch = voterIds.slice(i, i + 30);
+                    const pq = query(collection(window.db, 'pledges'), where('email', '==', window.userEmail), where('voterDocumentId', 'in', batch));
+                    const pSnap = await getDocs(pq);
+                    pSnap.docs.forEach(pd => {
+                        const v = pd.data().voterDocumentId;
+                        if (v) pledgeByVoter[v] = (pd.data().pledge || 'undecided').toLowerCase().replace('negative', 'no');
+                    });
+                }
+            } catch (_) {}
+        }
+        const voters = filtered.map(v => ({
+            id: v.id,
+            name: v.name || v.fullName || '',
+            idNumber: v.idNumber || v.voterId || '',
+            island: v.island || '',
+            constituency: v.constituency || '',
+            ballot: v.ballot || v.ballotBox || '',
+            gender: v.gender || '',
+            permanentAddress: (v.permanentAddress || v.address || '').trim(),
+            currentLocation: (v.currentLocation || v.location || '').trim(),
+            pledge: pledgeByVoter[v.id] || 'undecided'
+        }));
+
+        try {
+            await setDoc(doc(window.db, 'sharedVoterSnapshots', token), {
+                password,
+                voters,
+                createdBy: window.userEmail,
+                createdAt: serverTimestamp()
+            });
+        } catch (snapErr) {
+            console.error('Share snapshot write failed:', snapErr);
+            if (errEl) {
+                errEl.textContent = 'Could not save share data: ' + (snapErr.message || snapErr.code || 'permission or network error') + '. Check Firestore rules for sharedVoterSnapshots.';
+                errEl.style.display = 'block';
+                errEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+            if (btn) { btn.disabled = false; btn.textContent = 'Generate link'; }
+            return;
+        }
+
         const baseUrl = window.location.origin + window.location.pathname + (window.location.pathname.endsWith('/') ? '' : '/') + (window.location.pathname.endsWith('.html') ? '' : 'index.html');
         const url = baseUrl + (baseUrl.indexOf('?') >= 0 ? '&' : '?') + 'share=' + encodeURIComponent(token);
-        if (urlInput) urlInput.value = url;
-        if (pwInput) pwInput.value = password;
-        if (resultEl) resultEl.style.display = 'block';
         window._shareLinkLastGenerated = { url, password };
+
+        var urlEsc = (url || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        var pwEsc = (password || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        var resultHtml = '<p style="font-weight:600;margin:0 0 12px 0;color:var(--text-color);">Share this link and temporary password with the recipient:</p>' +
+            '<div style="margin-bottom:10px;"><label style="font-size:11px;color:var(--text-light);display:block;margin-bottom:4px;">Link</label>' +
+            '<div style="display:flex;gap:8px;align-items:center;"><input type="text" id="share-link-url" readonly value="' + urlEsc + '" style="flex:1;padding:10px 12px;font-size:13px;border:1px solid var(--border-color);border-radius:6px;background:white;box-sizing:border-box;">' +
+            '<button type="button" class="icon-btn" onclick="copyShareLinkUrl()" title="Copy link">Copy</button></div></div>' +
+            '<div><label style="font-size:11px;color:var(--text-light);display:block;margin-bottom:4px;">Temporary password</label>' +
+            '<div style="display:flex;gap:8px;align-items:center;"><input type="text" id="share-link-password" readonly value="' + pwEsc + '" style="flex:1;padding:10px 12px;font-size:16px;font-weight:700;letter-spacing:2px;border:1px solid var(--border-color);border-radius:6px;background:white;box-sizing:border-box;color:var(--primary-color);">' +
+            '<button type="button" class="icon-btn" onclick="copyShareLinkPassword()" title="Copy password">Copy</button></div></div>';
+
+        function applyShowLink() {
+            var outputBox = document.getElementById('share-link-output-box');
+            if (!outputBox) outputBox = document.querySelector('#share-voter-list-content #share-link-output-box');
+            if (!outputBox) outputBox = document.querySelector('#modal-body #share-link-output-box');
+            if (outputBox) {
+                outputBox.innerHTML = resultHtml;
+                outputBox.style.display = 'block';
+                outputBox.style.visibility = 'visible';
+                try { outputBox.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch (_) {}
+            } else {
+                var modalBody = document.getElementById('modal-body');
+                if (modalBody) {
+                    var injected = document.getElementById('share-link-result-injected');
+                    if (injected) injected.remove();
+                    injected = document.createElement('div');
+                    injected.id = 'share-link-result-injected';
+                    injected.setAttribute('style', 'margin-top:16px;padding:16px;background:#e8f4f8;border-radius:8px;border:2px solid var(--primary-color);');
+                    injected.innerHTML = resultHtml;
+                    modalBody.appendChild(injected);
+                    try { injected.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch (_) {}
+                }
+            }
+        }
+        applyShowLink();
+        requestAnimationFrame && requestAnimationFrame(applyShowLink);
+        setTimeout(applyShowLink, 0);
+        setTimeout(applyShowLink, 80);
+        setTimeout(applyShowLink, 250);
+
+        (function showDialogNow() {
+            var safeUrl = (url || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+            var safePw = (password || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+            var msg = '<p style="margin:0 0 8px 0;font-size:12px;color:var(--text-light);">Link:</p><p style="margin:0 0 12px 0;word-break:break-all;font-size:13px;user-select:all;">' + safeUrl + '</p><p style="margin:0 0 8px 0;font-size:12px;color:var(--text-light);">Temporary password:</p><p style="margin:0;font-size:18px;font-weight:700;letter-spacing:2px;color:var(--primary-color);user-select:all;">' + safePw + '</p>';
+            if (typeof window.showDialog === 'function') {
+                window.showDialog({ type: 'success', title: 'Share link and temporary password', allowHTML: true, message: msg });
+            } else {
+                alert('Share link and temporary password\n\nLink: ' + url + '\n\nTemporary password: ' + password);
+            }
+        })();
+
+        try {
+            await addDoc(collection(window.db, 'sharedVoterLinks'), linkData);
+        } catch (addErr) {
+            console.warn('Could not add to links list:', addErr);
+            if (errEl) {
+                errEl.textContent = 'Link and password are ready above. Could not add to your links list: ' + (addErr.message || addErr.code || '');
+                errEl.style.display = 'block';
+            }
+        }
+
         await loadSharedVoterLinks();
         if (nameInput) nameInput.value = '';
-        if (islandSelect) islandSelect.value = '';
-        if (agentSelect) agentSelect.value = '';
         if (window.showSuccess) window.showSuccess('Link generated. Share the link and password with the recipient.', 'Success');
     } catch (e) {
         console.error('generateShareVoterLink:', e);
-        if (errEl) { errEl.textContent = e.message || 'Failed to generate link.'; errEl.style.display = 'block'; }
+        if (errEl) {
+            errEl.textContent = (e.message || e.code || 'Failed to generate link.');
+            errEl.style.display = 'block';
+            errEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+    } finally {
+        if (btn) { btn.disabled = false; btn.textContent = 'Generate link'; }
     }
 }
 

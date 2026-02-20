@@ -393,18 +393,67 @@
                 <div style="background: var(--white); border-radius: 16px; padding: 24px; box-shadow: var(--shadow-md); overflow-x: auto;">
                     <div id="share-voter-loading" style="text-align: center; padding: 40px;">Loading voters...</div>
                     <div id="share-voter-table-container" style="display: none;">
+                        <div style="padding: 0 0 16px 0; display: flex; flex-direction: column; gap: 12px;">
+                            <p style="margin: 0 0 4px 0; font-size: 12px; font-weight: 600; color: var(--text-light);">Search, filter, sort & group (same as Voter Database)</p>
+                            <input type="text" id="share-voter-search-input" placeholder="Search voters by name or ID..." style="width: 100%; padding: 10px 16px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 14px; background: var(--light-color);">
+                            <div style="display: flex; flex-wrap: wrap; gap: 12px; align-items: center;">
+                                <select id="share-voter-filter-island" style="flex: 1; min-width: 140px; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 13px; background: var(--white); cursor: pointer;">
+                                    <option value="">All Islands</option>
+                                </select>
+                                <select id="share-voter-filter-constituency" style="flex: 1; min-width: 140px; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 13px; background: var(--white); cursor: pointer;">
+                                    <option value="">All Constituencies</option>
+                                </select>
+                                <select id="share-voter-filter-ballot" style="flex: 1; min-width: 140px; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 13px; background: var(--white); cursor: pointer;">
+                                    <option value="">All Ballot Boxes</option>
+                                </select>
+                                <select id="share-voter-filter-gender" style="flex: 1; min-width: 120px; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 13px; background: var(--white); cursor: pointer;">
+                                    <option value="">All Genders</option>
+                                    <option value="Male">Male</option>
+                                    <option value="Female">Female</option>
+                                </select>
+                                <select id="share-voter-group-by" style="flex: 1; min-width: 160px; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 13px; background: var(--white); cursor: pointer;">
+                                    <option value="">No Grouping</option>
+                                    <option value="island">Group by Island</option>
+                                    <option value="constituency">Group by Constituency</option>
+                                    <option value="ballot">Group by Ballot Box</option>
+                                    <option value="gender">Group by Gender</option>
+                                    <option value="permanentAddress">Group by Permanent Address</option>
+                                    <option value="currentLocation">Group by Current Location</option>
+                                </select>
+                                <select id="share-voter-sort-by" style="flex: 1; min-width: 140px; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 13px; background: var(--white); cursor: pointer;">
+                                    <option value="">No sorting</option>
+                                    <option value="name">Sort by Name</option>
+                                    <option value="idNumber">Sort by ID Number</option>
+                                    <option value="island">Sort by Island</option>
+                                    <option value="constituency">Sort by Constituency</option>
+                                    <option value="ballot">Sort by Ballot</option>
+                                    <option value="gender">Sort by Gender</option>
+                                    <option value="pledge">Sort by Pledge</option>
+                                </select>
+                            </div>
+                        </div>
                         <table class="data-table" style="width: 100%;">
                             <thead>
                                 <tr>
+                                    <th style="width: 52px;">Image</th>
                                     <th>#</th>
                                     <th>Name</th>
                                     <th>ID Number</th>
                                     <th>Island</th>
-                                    <th>Pledge status</th>
+                                    <th>Constituency</th>
+                                    <th>Ballot</th>
+                                    <th>Pledge</th>
                                 </tr>
                             </thead>
                             <tbody id="share-voter-table-body"></tbody>
                         </table>
+                        <div id="share-voter-pagination" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-top: 16px; padding: 12px 0; border-top: 1px solid var(--border-color);">
+                            <span id="share-voter-pagination-info" style="font-size: 13px; color: var(--text-light);">Showing 0–0 of 0</span>
+                            <div style="display: flex; gap: 8px;">
+                                <button type="button" id="share-voter-prev-btn" class="btn-secondary btn-compact" style="padding: 8px 16px;">Previous</button>
+                                <button type="button" id="share-voter-next-btn" class="btn-secondary btn-compact" style="padding: 8px 16px;">Next</button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>

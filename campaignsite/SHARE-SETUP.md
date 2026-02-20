@@ -1,10 +1,12 @@
 # Enable Voter Database Share Links
 
-The **Share voter database** feature (temporary password links) needs the server to connect to Firebase. If you see **"Share feature is not configured on the server"**, follow the section that matches where you run the app (local vs deployed).
+Share links use a **client-only** flow: when you create a link, a snapshot of the voter list is stored in Firestore (`sharedVoterSnapshots`). Recipients open the link, enter the temporary password, and the list loads directly from Firestore in the browser—**no backend API or server config is required** for viewing the list. It works the same locally and when deployed (e.g. Vercel).
+
+**You only need the steps below if** you used the older API-based share and see "Share feature is not configured on the server" on a deployed site.
 
 ---
 
-## Deployed on Vercel (fix "not configured" on live site)
+## Deployed on Vercel (only if using legacy API share)
 
 If the message appears on your **deployed** URL (e.g. `https://your-app.vercel.app`):
 

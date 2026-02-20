@@ -5335,49 +5335,39 @@ function renderCachedVotersData() {
     }
 
     const {
-        filteredDocs: allDocs,
+        filteredDocs: rawDocs,
         stats
     } = voterDataCache.data || {};
 
-    // Safety check: ensure allDocs is an array
-    if (!Array.isArray(allDocs)) {
-        console.warn('[renderCachedVotersData] Cache data structure invalid, clearing cache and reloading...', {
-            hasData: !!voterDataCache.data,
-            dataType: typeof voterDataCache.data,
-            filteredDocsType: typeof allDocs,
-            filteredDocsValue: allDocs,
-            cacheKeys: voterDataCache.data ? Object.keys(voterDataCache.data) : []
-        });
-        clearVoterCache();
-        if (typeof loadVotersData === 'function') {
-            loadVotersData(true);
-        }
-        return false;
-    }
-
-    // Additional validation: ensure each item in allDocs has the expected structure
-    if (allDocs.length > 0) {
-        const firstItem = allDocs[0];
-        if (!firstItem || typeof firstItem !== 'object' || !firstItem.hasOwnProperty('id') || !firstItem.hasOwnProperty('data')) {
-            console.warn('[renderCachedVotersData] Cache items have invalid structure, clearing cache...', {
-                firstItem: firstItem,
-                expectedStructure: {
-                    id: 'string',
-                    data: 'object'
-                }
+    // Normalize filteredDocs to always be an array (repair cache if needed)
+    let allDocs;
+    if (Array.isArray(rawDocs)) {
+        allDocs = rawDocs;
+    } else {
+        if (rawDocs != null && typeof rawDocs === 'object' && !Array.isArray(rawDocs)) {
+            console.warn('[renderCachedVotersData] Cache had non-array filteredDocs, normalizing to array');
+            allDocs = Object.keys(rawDocs).map(k => {
+                const v = rawDocs[k];
+                return v && typeof v === 'object' && v.id != null ? v : { id: k, data: v || {} };
             });
-            clearVoterCache();
-            if (typeof loadVotersData === 'function') {
-                loadVotersData(true);
-            }
-            return false;
+        } else {
+            allDocs = [];
         }
+        if (voterDataCache.data) voterDataCache.data.filteredDocs = allDocs;
     }
 
-    // Safety check: if stats is missing, calculate it from the data
+    // Ensure each item has expected { id, data } structure; filter out invalid entries and repair cache
+    const validDocs = Array.isArray(allDocs) ? allDocs.filter(item => {
+        return item && typeof item === 'object' && item.hasOwnProperty('id') && item.hasOwnProperty('data');
+    }) : [];
+    if (validDocs.length !== allDocs.length && voterDataCache.data) {
+        voterDataCache.data.filteredDocs = validDocs;
+    }
+    const allDocsFinal = validDocs;
+
+    // Safety check: if stats is missing, calculate it from the data and persist back to cache
     let safeStats = stats;
     if (!safeStats || typeof safeStats !== 'object') {
-        console.warn('[renderCachedVotersData] Stats missing from cache, calculating from data...');
         const today = new Date();
         today.setHours(0, 0, 0, 0);
 
@@ -5386,8 +5376,8 @@ function renderCachedVotersData() {
         let verified = 0;
         let pending = 0;
 
-        if (allDocs && Array.isArray(allDocs)) {
-            allDocs.forEach(({
+        if (allDocsFinal && allDocsFinal.length > 0) {
+            allDocsFinal.forEach(({
                 data
             }) => {
                 total++;
@@ -5407,6 +5397,9 @@ function renderCachedVotersData() {
             verified,
             pending
         };
+        if (voterDataCache.data && typeof voterDataCache.data === 'object') {
+            voterDataCache.data.stats = safeStats;
+        }
     }
 
     // Apply search filter - check both search inputs
@@ -5428,9 +5421,9 @@ function renderCachedVotersData() {
         island: null
     };
 
-    let filteredDocs = allDocs || [];
-    if (Array.isArray(allDocs)) {
-        filteredDocs = allDocs.filter(({
+    let filteredDocs = allDocsFinal || [];
+    if (allDocsFinal && allDocsFinal.length > 0) {
+        filteredDocs = allDocsFinal.filter(({
             data
         }) => {
             // Global filter: Constituency

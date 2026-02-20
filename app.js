@@ -3378,60 +3378,39 @@ async function handleShareVoterView(shareToken) {
 
     async function doVerify() {
         if (errorEl) { errorEl.style.display = 'none'; errorEl.textContent = ''; }
-        const base = window.location.origin;
-        if (!base || base === 'null' || base.startsWith('file:')) {
-            if (errorEl) { errorEl.textContent = 'Open the share link in your browser (e.g. paste the full link in the address bar). Do not open the HTML file directly.'; errorEl.style.display = 'block'; }
-            return;
-        }
         const password = passwordInput ? passwordInput.value.trim() : '';
         if (!password) {
             if (errorEl) { errorEl.textContent = 'Please enter the temporary password.'; errorEl.style.display = 'block'; }
             return;
         }
+        if (!window.db) {
+            if (errorEl) { errorEl.textContent = 'Unable to load. Please refresh the page.'; errorEl.style.display = 'block'; }
+            return;
+        }
         if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = 'Verifying…'; }
-        const verifyUrl = base + '/api/share/verify';
         try {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 30000);
-            const res = await fetch(verifyUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ token: (shareToken || '').trim(), password: password }),
-                signal: controller.signal
-            });
-            clearTimeout(timeoutId);
-            const text = await res.text();
-            let data = {};
-            try { data = text ? JSON.parse(text) : {}; } catch (_) {}
-            if (res.ok && data && data.ok) {
-                const sessionToken = data.sessionToken || data.session;
-                if (sessionToken) {
-                    sessionStorage.setItem('shareSession_' + shareToken, JSON.stringify({ sessionToken: sessionToken }));
-                }
-                if (passwordWrap) passwordWrap.style.display = 'none';
-                if (listWrap) listWrap.style.display = 'block';
-                if (typeof window.loadShareVoterList === 'function') {
-                    window.loadShareVoterList();
-                } else {
-                    const loadingEl = document.getElementById('share-voter-loading');
-                    const tableContainer = document.getElementById('share-voter-table-container');
-                    if (loadingEl) loadingEl.textContent = 'Share backend not configured. Voter list cannot be loaded.';
-                    if (tableContainer) tableContainer.style.display = 'none';
-                }
-                const refreshBtn = document.getElementById('share-voter-refresh-btn');
-                if (refreshBtn) refreshBtn.onclick = () => { if (window.loadShareVoterList) window.loadShareVoterList(); };
-            } else {
-                if (errorEl) {
-                    errorEl.textContent = res.status === 503 ? 'Share feature is not configured on the server.' : (data && data.error) || 'Invalid password or link.';
-                    errorEl.style.display = 'block';
-                }
+            const { doc, getDoc } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
+            const snapRef = doc(window.db, 'sharedVoterSnapshots', (shareToken || '').trim());
+            const snap = await getDoc(snapRef);
+            if (!snap.exists()) {
+                if (errorEl) { errorEl.textContent = 'Invalid link or password.'; errorEl.style.display = 'block'; }
+                return;
             }
+            const data = snap.data();
+            const storedPw = (data.password || '').toString().trim();
+            if (storedPw.toLowerCase() !== password.toLowerCase()) {
+                if (errorEl) { errorEl.textContent = 'Invalid link or password.'; errorEl.style.display = 'block'; }
+                return;
+            }
+            sessionStorage.setItem('shareSession_' + shareToken, JSON.stringify({ verified: true }));
+            if (passwordWrap) passwordWrap.style.display = 'none';
+            if (listWrap) listWrap.style.display = 'block';
+            if (typeof window.loadShareVoterList === 'function') window.loadShareVoterList();
+            const refreshBtn = document.getElementById('share-voter-refresh-btn');
+            if (refreshBtn) refreshBtn.onclick = () => { if (window.loadShareVoterList) window.loadShareVoterList(); };
         } catch (err) {
             console.error('Share verify error:', err);
-            if (errorEl) {
-                errorEl.textContent = err.name === 'AbortError' ? 'Request timed out. Restart the server and try again.' : 'Could not verify. Check your connection.';
-                errorEl.style.display = 'block';
-            }
+            if (errorEl) { errorEl.textContent = 'Could not verify. Check your connection.'; errorEl.style.display = 'block'; }
         } finally {
             if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = 'Access list'; }
         }
@@ -3444,17 +3423,13 @@ async function handleShareVoterView(shareToken) {
     if (existingSession) {
         try {
             const parsed = JSON.parse(existingSession);
-            if (parsed.sessionToken) {
-                const base = window.location.origin;
-                const r = await fetch(base + '/api/share/voters?session=' + encodeURIComponent(parsed.sessionToken));
-                if (r.ok) {
-                    if (passwordWrap) passwordWrap.style.display = 'none';
-                    if (listWrap) listWrap.style.display = 'block';
-                    if (typeof window.loadShareVoterList === 'function') window.loadShareVoterList();
-                    const refreshBtn = document.getElementById('share-voter-refresh-btn');
-                    if (refreshBtn) refreshBtn.onclick = () => { if (window.loadShareVoterList) window.loadShareVoterList(); };
-                    return;
-                }
+            if (parsed.verified) {
+                if (passwordWrap) passwordWrap.style.display = 'none';
+                if (listWrap) listWrap.style.display = 'block';
+                if (typeof window.loadShareVoterList === 'function') window.loadShareVoterList();
+                const refreshBtn = document.getElementById('share-voter-refresh-btn');
+                if (refreshBtn) refreshBtn.onclick = () => { if (window.loadShareVoterList) window.loadShareVoterList(); };
+                return;
             }
         } catch (_) {}
     }
@@ -3468,7 +3443,180 @@ function escapeHtml(str) {
     return div.innerHTML;
 }
 
-// Load voter list for share link view and render table with pledge selector
+// In-memory list for share view (set by loadShareVoterList, used by renderShareVoterList)
+window._shareVotersList = null;
+window._shareVoterPagination = { currentPage: 1, perPage: 15 };
+
+function renderShareVoterList() {
+    const tbody = document.getElementById('share-voter-table-body');
+    if (!tbody || !window._shareVotersList) return;
+    const searchInput = document.getElementById('share-voter-search-input');
+    const filterIsland = document.getElementById('share-voter-filter-island');
+    const filterConstituency = document.getElementById('share-voter-filter-constituency');
+    const filterBallot = document.getElementById('share-voter-filter-ballot');
+    const filterGender = document.getElementById('share-voter-filter-gender');
+    const groupByEl = document.getElementById('share-voter-group-by');
+    const searchTerm = (searchInput && searchInput.value ? searchInput.value : '').toLowerCase().trim();
+    const filterIslandVal = (filterIsland && filterIsland.value) ? filterIsland.value : '';
+    const filterConstituencyVal = (filterConstituency && filterConstituency.value) ? filterConstituency.value : '';
+    const filterBallotVal = (filterBallot && filterBallot.value) ? filterBallot.value : '';
+    const filterGenderVal = (filterGender && filterGender.value) ? filterGender.value : '';
+    const groupBy = (groupByEl && groupByEl.value) ? groupByEl.value : '';
+    const sortByEl = document.getElementById('share-voter-sort-by');
+    const sortBy = (sortByEl && sortByEl.value) ? sortByEl.value : '';
+
+    let filtered = window._shareVotersList.filter(v => {
+        if (searchTerm) {
+            const name = (v.name || v.fullName || '').toLowerCase();
+            const idNum = (v.idNumber || v.voterId || '').toLowerCase();
+            const addr = (v.permanentAddress || v.address || '').toLowerCase();
+            const loc = (v.currentLocation || v.location || '').toLowerCase();
+            if (!name.includes(searchTerm) && !idNum.includes(searchTerm) && !addr.includes(searchTerm) && !loc.includes(searchTerm)) return false;
+        }
+        if (filterIslandVal && (v.island || '') !== filterIslandVal) return false;
+        if (filterConstituencyVal && (v.constituency || '') !== filterConstituencyVal) return false;
+        if (filterBallotVal && (v.ballot || '') !== filterBallotVal) return false;
+        if (filterGenderVal && (v.gender || '') !== filterGenderVal) return false;
+        return true;
+    });
+
+    if (sortBy) {
+        filtered = [...filtered].sort((a, b) => {
+            let va = (a[sortBy] || a.fullName || a.name || '').toString().toLowerCase();
+            let vb = (b[sortBy] || b.fullName || b.name || '').toString().toLowerCase();
+            if (sortBy === 'pledge') {
+                const order = { yes: 0, no: 1, undecided: 2 };
+                va = order[va] !== undefined ? order[va] : 3;
+                vb = order[vb] !== undefined ? order[vb] : 3;
+                return va - vb;
+            }
+            return va.localeCompare(vb);
+        });
+    }
+
+    function getShareVoterInitials(v) {
+        const n = (v.name || v.fullName || '').trim();
+        if (!n) return '—';
+        const parts = n.split(/\s+/);
+        if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+        return n.substring(0, 2).toUpperCase();
+    }
+    function rowCells(v, index) {
+        const pledge = (v.pledge || 'undecided').toLowerCase();
+        const imgUrl = (v.imageUrl || v.image || '').trim();
+        const imgUrlAttr = imgUrl.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+        const initials = escapeHtml(getShareVoterInitials(v));
+        const imgCell = imgUrl
+            ? '<td style="vertical-align:middle;"><div style="position:relative;width:40px;height:40px;"><img src="' + imgUrlAttr + '" alt="" style="width:40px;height:40px;border-radius:50%;object-fit:cover;" onerror="this.style.display=\'none\';var d=this.nextElementSibling;if(d)d.style.display=\'flex\';"><div style="width:40px;height:40px;border-radius:50%;display:none;align-items:center;justify-content:center;background:var(--gradient-primary);color:white;font-weight:600;font-size:14px;">' + initials + '</div></div></td>'
+            : '<td style="vertical-align:middle;"><div style="width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:var(--gradient-primary);color:white;font-weight:600;font-size:14px;">' + initials + '</div></td>';
+        const pledgeVal = pledge === 'yes' ? 'yes' : pledge === 'no' ? 'no' : 'undecided';
+        const pledgeSelect = '<select class="share-pledge-select" data-voter-id="' + escapeHtml(v.id) + '" style="padding:6px 10px;border:1px solid var(--border-color);border-radius:6px;font-size:13px;background:white;"><option value="undecided"' + (pledgeVal === 'undecided' ? ' selected' : '') + '>Undecided</option><option value="yes"' + (pledgeVal === 'yes' ? ' selected' : '') + '>Yes</option><option value="no"' + (pledgeVal === 'no' ? ' selected' : '') + '>No</option></select>';
+        return imgCell + '<td>' + (index + 1) + '</td><td>' + escapeHtml(v.name || v.fullName || '—') + '</td><td>' + escapeHtml(v.idNumber || v.voterId || '—') + '</td><td>' + escapeHtml(v.island || '—') + '</td><td>' + escapeHtml(v.constituency || '—') + '</td><td>' + escapeHtml(v.ballot || '—') + '</td><td>' + pledgeSelect + '</td>';
+    }
+
+    const perPage = (window._shareVoterPagination && window._shareVoterPagination.perPage) || 15;
+    const totalFiltered = filtered.length;
+    const totalPages = Math.max(1, Math.ceil(totalFiltered / perPage));
+    let currentPage = (window._shareVoterPagination && window._shareVoterPagination.currentPage) || 1;
+    currentPage = Math.min(Math.max(1, currentPage), totalPages);
+    if (window._shareVoterPagination) window._shareVoterPagination.currentPage = currentPage;
+    const start = (currentPage - 1) * perPage;
+    const pageRows = totalFiltered === 0 ? [] : filtered.slice(start, start + perPage);
+
+    if (groupBy && pageRows.length > 0) {
+        const grouped = {};
+        pageRows.forEach(v => {
+            let key = '';
+            switch (groupBy) {
+                case 'island': key = v.island || 'Unknown'; break;
+                case 'constituency': key = v.constituency || 'Unknown'; break;
+                case 'ballot': key = v.ballot || 'Unknown'; break;
+                case 'gender': key = v.gender || 'Unknown'; break;
+                case 'permanentAddress': key = (v.permanentAddress || '').trim() || 'Unknown'; break;
+                case 'currentLocation': key = (v.currentLocation || '').trim() || 'Unknown'; break;
+                default: key = 'All';
+            }
+            if (!grouped[key]) grouped[key] = [];
+            grouped[key].push(v);
+        });
+        const labels = { island: 'Island', constituency: 'Constituency', ballot: 'Ballot Box', gender: 'Gender', permanentAddress: 'Permanent Address', currentLocation: 'Current Location' };
+        const groupLabel = labels[groupBy] || 'Group';
+        let index = start;
+        const rows = [];
+        Object.keys(grouped).sort().forEach(key => {
+            rows.push('<tr style="background: var(--primary-50); font-weight: 600;"><td colspan="8" style="padding: 10px 12px;">' + escapeHtml(groupLabel + ': ' + key) + '</td></tr>');
+            grouped[key].forEach(v => {
+                rows.push('<tr>' + rowCells(v, index) + '</tr>');
+                index++;
+            });
+        });
+        tbody.innerHTML = rows.join('');
+        tbody.querySelectorAll('.share-pledge-select').forEach(el => {
+            el.addEventListener('change', function() { window.updateSharePledge(this.dataset.voterId, this.value); });
+        });
+    } else {
+        const hasFilters = searchTerm || filterIslandVal || filterConstituencyVal || filterBallotVal || filterGenderVal;
+        tbody.innerHTML = pageRows.length === 0
+            ? '<tr><td colspan="8" style="text-align: center; padding: 24px; color: var(--text-light);">' + (hasFilters ? 'No voters match the filters.' : 'No voters in this list.') + '</td></tr>'
+            : pageRows.map((v, i) => '<tr>' + rowCells(v, start + i) + '</tr>').join('');
+        tbody.querySelectorAll('.share-pledge-select').forEach(el => {
+            el.addEventListener('change', function() { window.updateSharePledge(this.dataset.voterId, this.value); });
+        });
+    }
+
+    const paginationEl = document.getElementById('share-voter-pagination');
+    const paginationInfo = document.getElementById('share-voter-pagination-info');
+    const prevBtn = document.getElementById('share-voter-prev-btn');
+    const nextBtn = document.getElementById('share-voter-next-btn');
+    if (paginationInfo) {
+        const from = totalFiltered === 0 ? 0 : start + 1;
+        const to = totalFiltered === 0 ? 0 : Math.min(start + perPage, totalFiltered);
+        paginationInfo.textContent = 'Showing ' + from + '–' + to + ' of ' + totalFiltered;
+    }
+    if (prevBtn) {
+        prevBtn.disabled = currentPage <= 1;
+        prevBtn.onclick = function() {
+            if (window._shareVoterPagination && window._shareVoterPagination.currentPage > 1) {
+                window._shareVoterPagination.currentPage--;
+                renderShareVoterList();
+            }
+        };
+    }
+    if (nextBtn) {
+        nextBtn.disabled = currentPage >= totalPages;
+        nextBtn.onclick = function() {
+            if (window._shareVoterPagination && window._shareVoterPagination.currentPage < totalPages) {
+                window._shareVoterPagination.currentPage++;
+                renderShareVoterList();
+            }
+        };
+    }
+    if (paginationEl) paginationEl.style.display = totalFiltered === 0 ? 'none' : 'flex';
+}
+
+window.updateSharePledge = async function(voterId, value) {
+    const token = window._shareToken;
+    if (!token || !window.db) return;
+    try {
+        const { doc, getDoc, updateDoc } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
+        const ref = doc(window.db, 'sharedVoterSnapshots', token);
+        const snap = await getDoc(ref);
+        if (!snap.exists()) return;
+        const data = snap.data();
+        const pledgeUpdates = { ...(data.pledgeUpdates || {}), [voterId]: value };
+        await updateDoc(ref, { pledgeUpdates });
+        if (window._shareVotersList) {
+            const v = window._shareVotersList.find(x => x.id === voterId);
+            if (v) v.pledge = value;
+        }
+        if (window.showSuccess) window.showSuccess('Pledge updated.', 'Saved');
+    } catch (err) {
+        console.error('updateSharePledge:', err);
+        if (window.showErrorDialog) window.showErrorDialog(err.message || 'Could not save pledge.');
+    }
+};
+
+// Load voter list for share link view from Firestore snapshot (no API)
 window.loadShareVoterList = async function () {
     const loadingEl = document.getElementById('share-voter-loading');
     const tableContainer = document.getElementById('share-voter-table-container');
@@ -3476,95 +3624,92 @@ window.loadShareVoterList = async function () {
     const token = window._shareToken;
     if (!tbody || !token) return;
     const sessionItem = sessionStorage.getItem('shareSession_' + token);
-    let sessionToken = null;
+    let verified = false;
     if (sessionItem) {
         try {
             const parsed = JSON.parse(sessionItem);
-            sessionToken = parsed.sessionToken || parsed.session;
+            verified = !!parsed.verified;
         } catch (_) {}
     }
-    if (!sessionToken) {
-        if (loadingEl) loadingEl.textContent = 'Session expired. Please re-enter the password.';
+    if (!verified) {
+        if (loadingEl) loadingEl.textContent = 'Please re-enter the password to view the list.';
+        if (tableContainer) tableContainer.style.display = 'none';
+        return;
+    }
+    if (!window.db) {
+        if (loadingEl) loadingEl.textContent = 'Unable to load. Please refresh.';
         if (tableContainer) tableContainer.style.display = 'none';
         return;
     }
     if (loadingEl) { loadingEl.style.display = 'block'; loadingEl.textContent = 'Loading voters...'; }
     if (tableContainer) tableContainer.style.display = 'none';
-    const base = window.location.origin;
     try {
-        const r = await fetch(base + '/api/share/voters?session=' + encodeURIComponent(sessionToken));
-        const text = await r.text();
-        let data = {};
-        try {
-            data = text ? JSON.parse(text) : {};
-        } catch (_) {
-            if (loadingEl) loadingEl.textContent = (r.ok ? 'Invalid response from server.' : (r.status + ' ' + (r.statusText || ''))) + ' Try again or re-enter the share password.';
+        const { doc, getDoc } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
+        const snap = await getDoc(doc(window.db, 'sharedVoterSnapshots', token));
+        if (!snap.exists()) {
+            if (loadingEl) loadingEl.textContent = 'Invalid or expired link.';
+            if (tableContainer) tableContainer.style.display = 'none';
             return;
         }
-        if (!r.ok) {
-            if (loadingEl) loadingEl.textContent = (data.error || 'Failed to load voters.') + ' Try refreshing or re-enter the share password.';
-            return;
-        }
-        const voters = data.voters || [];
+        const data = snap.data();
+        const pledgeUpdates = data.pledgeUpdates || {};
+        const voters = (data.voters || []).map(v => ({
+            ...v,
+            pledge: (pledgeUpdates[v.id] || v.pledge || 'undecided').toString().toLowerCase().replace('negative', 'no')
+        }));
+        window._shareVotersList = voters;
         if (loadingEl) loadingEl.style.display = 'none';
         if (tableContainer) tableContainer.style.display = 'block';
-        tbody.innerHTML = voters.map((v, i) => {
-            const pledge = (v.pledge || 'undecided').toLowerCase();
-            const name = (v.name || v.fullName || '—');
-            const idNum = (v.idNumber || v.voterId || '—');
-            const island = (v.island || '—');
-            const vid = (v.id || '').toString().replace(/"/g, '&quot;');
-            return `<tr data-voter-id="${vid}">
-                <td>${i + 1}</td>
-                <td>${escapeHtml(name)}</td>
-                <td>${escapeHtml(idNum)}</td>
-                <td>${escapeHtml(island)}</td>
-                <td>
-                    <select class="share-voter-pledge-select" data-voter-id="${vid}" style="padding: 6px 10px; border: 1px solid var(--border-color); border-radius: 6px; font-size: 13px; min-width: 110px;">
-                        <option value="yes" ${pledge === 'yes' ? 'selected' : ''}>Yes</option>
-                        <option value="no" ${pledge === 'no' ? 'selected' : ''}>No</option>
-                        <option value="undecided" ${pledge === 'undecided' ? 'selected' : ''}>Undecided</option>
-                    </select>
-                </td>
-            </tr>`;
-        }).join('');
-        tbody.querySelectorAll('.share-voter-pledge-select').forEach(sel => {
-            sel.addEventListener('change', function () {
-                const voterId = this.getAttribute('data-voter-id');
-                const pledge = this.value;
-                if (voterId && pledge) window.setShareVoterPledge(sessionToken, voterId, pledge, this);
-            });
-        });
-        if (voters.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 24px; color: var(--text-light);">No voters in this list.</td></tr>';
+
+        const islandSelect = document.getElementById('share-voter-filter-island');
+        const constituencySelect = document.getElementById('share-voter-filter-constituency');
+        const ballotSelect = document.getElementById('share-voter-filter-ballot');
+        const islands = [...new Set(voters.map(v => v.island).filter(Boolean))].sort();
+        const constituencies = [...new Set(voters.map(v => v.constituency).filter(Boolean))].sort();
+        const ballots = [...new Set(voters.map(v => v.ballot).filter(Boolean))].sort();
+        if (islandSelect) {
+            const cur = islandSelect.value;
+            islandSelect.innerHTML = '<option value="">All Islands</option>' + islands.map(i => '<option value="' + escapeHtml(i) + '">' + escapeHtml(i) + '</option>').join('');
+            if (cur) islandSelect.value = cur;
+        }
+        if (constituencySelect) {
+            const cur = constituencySelect.value;
+            constituencySelect.innerHTML = '<option value="">All Constituencies</option>' + constituencies.map(c => '<option value="' + escapeHtml(c) + '">' + escapeHtml(c) + '</option>').join('');
+            if (cur) constituencySelect.value = cur;
+        }
+        if (ballotSelect) {
+            const cur = ballotSelect.value;
+            ballotSelect.innerHTML = '<option value="">All Ballot Boxes</option>' + ballots.map(b => '<option value="' + escapeHtml(b) + '">' + escapeHtml(b) + '</option>').join('');
+            if (cur) ballotSelect.value = cur;
+        }
+
+        renderShareVoterList();
+        setTimeout(renderShareVoterList, 50);
+
+        if (!window._shareListenersAttached) {
+            const searchInput = document.getElementById('share-voter-search-input');
+            const groupByEl = document.getElementById('share-voter-group-by');
+            const filterGender = document.getElementById('share-voter-filter-gender');
+            const onUpdate = () => {
+                if (window._shareVotersList) {
+                    if (window._shareVoterPagination) window._shareVoterPagination.currentPage = 1;
+                    renderShareVoterList();
+                }
+            };
+            if (searchInput) searchInput.addEventListener('input', onUpdate);
+            if (islandSelect) islandSelect.addEventListener('change', onUpdate);
+            if (constituencySelect) constituencySelect.addEventListener('change', onUpdate);
+            if (ballotSelect) ballotSelect.addEventListener('change', onUpdate);
+            if (filterGender) filterGender.addEventListener('change', onUpdate);
+            if (groupByEl) groupByEl.addEventListener('change', onUpdate);
+            const sortByEl = document.getElementById('share-voter-sort-by');
+            if (sortByEl) sortByEl.addEventListener('change', onUpdate);
+            window._shareListenersAttached = true;
         }
     } catch (err) {
         console.error('loadShareVoterList:', err);
-        if (loadingEl) loadingEl.textContent = 'Could not load voters. Check your connection and that you\'re using the same link (e.g. ' + base + '). Try re-entering the share password.';
+        if (loadingEl) loadingEl.textContent = 'Could not load voters. Try re-entering the password.';
         if (tableContainer) tableContainer.style.display = 'none';
-    }
-};
-
-window.setShareVoterPledge = async function (sessionToken, voterId, pledge, selectEl) {
-    const base = window.location.origin;
-    try {
-        const r = await fetch(base + '/api/share/pledge', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ session: sessionToken, voterId: voterId, pledge: pledge })
-        });
-        const data = r.ok ? await r.json().catch(() => ({})) : null;
-        if (r.ok && data && data.ok) {
-            if (window.showSuccess) window.showSuccess('Pledge updated.', 'Saved');
-        } else {
-            if (window.loadShareVoterList) window.loadShareVoterList();
-            if (window.showErrorDialog) window.showErrorDialog((data && data.error) || 'Failed to save pledge.', 'Error');
-            else alert((data && data.error) || 'Failed to save pledge.');
-        }
-    } catch (err) {
-        if (window.loadShareVoterList) window.loadShareVoterList();
-        if (window.showErrorDialog) window.showErrorDialog('Could not save. Try again.', 'Error');
-        else alert('Could not save. Try again.');
     }
 };
 
