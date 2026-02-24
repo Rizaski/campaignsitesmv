@@ -979,7 +979,6 @@ const pageTemplates = {
         </div>
         
         <div id="call-detail-backdrop" class="call-detail-backdrop" style="display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 99; backdrop-filter: blur(2px);" onclick="closeCallDetailPanel()"></div>
-        </div>
         <div id="calls-pagination" class="table-pagination" style="display: none;"></div>
     `,
 
@@ -5050,20 +5049,37 @@ function clearAllCaches() {
     });
 }
 
+// Compute age in years from DOB (Timestamp, Date, or string). Used when window.getAgeFromDate is not available.
+function getDisplayAgeFromDob(value) {
+    if (value == null) return null;
+    try {
+        let d = null;
+        if (value.toDate && typeof value.toDate === 'function') d = value.toDate();
+        else if (value instanceof Date) d = value;
+        else if (typeof value === 'string') d = new Date(value.trim());
+        if (!d || isNaN(d.getTime())) return null;
+        const today = new Date();
+        let age = today.getFullYear() - d.getFullYear();
+        const monthDiff = today.getMonth() - d.getMonth();
+        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < d.getDate())) age--;
+        return age;
+    } catch { return null; }
+}
+
 // Helper function to create a voter table row
 function createVoterTableRow(id, data, rowNumber) {
-    // Format date of birth
+    const dobValue = data.dateOfBirth || data.dob;
     let dobDisplay = 'N/A';
-    if (data.dateOfBirth) {
-        if (data.dateOfBirth.toDate) {
-            const dob = data.dateOfBirth.toDate();
+    if (dobValue) {
+        if (dobValue.toDate) {
+            const dob = dobValue.toDate();
             dobDisplay = dob.toLocaleDateString('en-US', {
                 year: 'numeric',
                 month: '2-digit',
                 day: '2-digit'
             });
-        } else if (typeof data.dateOfBirth === 'string') {
-            const dob = new Date(data.dateOfBirth);
+        } else if (typeof dobValue === 'string') {
+            const dob = new Date(dobValue);
             if (!isNaN(dob.getTime())) {
                 dobDisplay = dob.toLocaleDateString('en-US', {
                     year: 'numeric',
@@ -5071,7 +5087,7 @@ function createVoterTableRow(id, data, rowNumber) {
                     day: '2-digit'
                 });
             } else {
-                dobDisplay = data.dateOfBirth;
+                dobDisplay = dobValue;
             }
         }
     }
@@ -5084,7 +5100,9 @@ function createVoterTableRow(id, data, rowNumber) {
     // Get image URL, checking images folder if needed
     let imageUrl = getVoterImageUrl(data, idNumber);
 
-    const age = data.age !== undefined && data.age !== null && data.age !== '' ? data.age : 'N/A';
+    let age = data.age !== undefined && data.age !== null && data.age !== '' ? data.age : null;
+    if (age == null && dobValue) age = (typeof window.getAgeFromDate === 'function' && window.getAgeFromDate(dobValue)) || getDisplayAgeFromDob(dobValue);
+    age = age != null ? age : 'N/A';
     const gender = data.gender ? (data.gender.charAt(0).toUpperCase() + data.gender.slice(1)) : 'N/A';
     const island = data.island || 'N/A';
     const ballotBox = data.ballot || data.ballotBox || 'N/A';
@@ -5178,18 +5196,18 @@ function createVoterMobileCard(id, data, rowNumber) {
     const idNumber = data.idNumber || data.voterId || id;
     const imageUrl = getVoterImageUrl(data, idNumber);
 
-    // Format date of birth
+    const dobValue = data.dateOfBirth || data.dob;
     let dobDisplay = 'N/A';
-    if (data.dateOfBirth) {
-        if (data.dateOfBirth.toDate) {
-            const dob = data.dateOfBirth.toDate();
+    if (dobValue) {
+        if (dobValue.toDate) {
+            const dob = dobValue.toDate();
             dobDisplay = dob.toLocaleDateString('en-US', {
                 year: 'numeric',
                 month: '2-digit',
                 day: '2-digit'
             });
-        } else if (typeof data.dateOfBirth === 'string') {
-            const dob = new Date(data.dateOfBirth);
+        } else if (typeof dobValue === 'string') {
+            const dob = new Date(dobValue);
             if (!isNaN(dob.getTime())) {
                 dobDisplay = dob.toLocaleDateString('en-US', {
                     year: 'numeric',
@@ -5197,12 +5215,14 @@ function createVoterMobileCard(id, data, rowNumber) {
                     day: '2-digit'
                 });
             } else {
-                dobDisplay = data.dateOfBirth;
+                dobDisplay = dobValue;
             }
         }
     }
 
-    const age = data.age !== undefined && data.age !== null && data.age !== '' ? data.age : 'N/A';
+    let age = data.age !== undefined && data.age !== null && data.age !== '' ? data.age : null;
+    if (age == null && dobValue) age = (typeof window.getAgeFromDate === 'function' && window.getAgeFromDate(dobValue)) || getDisplayAgeFromDob(dobValue);
+    age = age != null ? age : 'N/A';
     const gender = data.gender ? (data.gender.charAt(0).toUpperCase() + data.gender.slice(1)) : 'N/A';
     const island = data.island || 'N/A';
     const ballotBox = data.ballot || data.ballotBox || 'N/A';
@@ -6078,18 +6098,18 @@ async function loadVotersData(forceRefresh = false) {
                 });
             }
 
-            // Format date of birth
+            const dobValue = data.dateOfBirth || data.dob;
             let dobDisplay = 'N/A';
-            if (data.dateOfBirth) {
-                if (data.dateOfBirth.toDate) {
-                    const dob = data.dateOfBirth.toDate();
+            if (dobValue) {
+                if (dobValue.toDate) {
+                    const dob = dobValue.toDate();
                     dobDisplay = dob.toLocaleDateString('en-US', {
                         year: 'numeric',
                         month: '2-digit',
                         day: '2-digit'
                     });
-                } else if (typeof data.dateOfBirth === 'string') {
-                    const dob = new Date(data.dateOfBirth);
+                } else if (typeof dobValue === 'string') {
+                    const dob = new Date(dobValue);
                     if (!isNaN(dob.getTime())) {
                         dobDisplay = dob.toLocaleDateString('en-US', {
                             year: 'numeric',
@@ -6097,7 +6117,7 @@ async function loadVotersData(forceRefresh = false) {
                             day: '2-digit'
                         });
                     } else {
-                        dobDisplay = data.dateOfBirth;
+                        dobDisplay = dobValue;
                     }
                 }
             }
@@ -6114,7 +6134,9 @@ async function loadVotersData(forceRefresh = false) {
                 idNumber = 'N/A'; // Likely a Firestore document ID, don't use it
             }
 
-            const age = data.age ? data.age + '' : 'N/A';
+            let age = data.age !== undefined && data.age !== null && data.age !== '' ? data.age : null;
+            if (age == null && dobValue) age = (typeof window.getAgeFromDate === 'function' && window.getAgeFromDate(dobValue)) || getDisplayAgeFromDob(dobValue);
+            age = age != null ? (age + '') : 'N/A';
             const gender = data.gender ? data.gender.charAt(0).toUpperCase() + data.gender.slice(1) : 'N/A';
             const island = data.island || 'N/A';
             const ballotBox = data.ballot || (data.ballot && data.box ? `${data.ballot}-${data.box}` : '') || 'N/A';

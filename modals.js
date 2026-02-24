@@ -5121,24 +5121,65 @@ async function handleBatchVoterImport(csvDataArray) {
     }
 }
 
-// Calculate age from date of birth
-function calculateAge(dateString) {
+// Parse date of birth to a local Date (Firestore Timestamp, ISO, DD/MM/YYYY, etc.)
+function parseDateOfBirth(value) {
+    if (value == null) return null;
+    if (value.toDate && typeof value.toDate === 'function') return value.toDate();
+    if (value instanceof Date) return isNaN(value.getTime()) ? null : value;
+    if (typeof value === 'number' && !isNaN(value) && value > 0) {
+        var d = new Date(1899, 11, 30);
+        d.setDate(d.getDate() + Math.floor(value));
+        return isNaN(d.getTime()) ? null : d;
+    }
+    var s = typeof value === 'string' ? value.trim() : String(value).trim();
+    if (!s) return null;
+    var isoMatch = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (isoMatch) {
+        var y = parseInt(isoMatch[1], 10), m = parseInt(isoMatch[2], 10) - 1, d = parseInt(isoMatch[3], 10);
+        var date = new Date(y, m, d);
+        if (date.getFullYear() !== y || date.getMonth() !== m || date.getDate() !== d) return null;
+        return date;
+    }
+    var slashMatch = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+    if (slashMatch) {
+        var n1 = parseInt(slashMatch[1], 10), n2 = parseInt(slashMatch[2], 10), y = parseInt(slashMatch[3], 10);
+        var day, month;
+        if (n1 > 12) { day = n1; month = n2 - 1; }
+        else if (n2 > 12) { day = n2; month = n1 - 1; }
+        else { day = n1; month = n2 - 1; }
+        var dateSlash = new Date(y, month, day);
+        if (dateSlash.getFullYear() !== y || dateSlash.getMonth() !== month || dateSlash.getDate() !== day) return null;
+        return dateSlash;
+    }
+    var fallback = new Date(s);
+    return isNaN(fallback.getTime()) ? null : fallback;
+}
+
+// Get age in years from DOB (no range clamp). Use for display; use calculateAge for form validation.
+function getAgeFromDate(value) {
     try {
-        const dob = new Date(dateString);
+        const dob = parseDateOfBirth(value);
+        if (!dob) return null;
         const today = new Date();
         let age = today.getFullYear() - dob.getFullYear();
         const monthDiff = today.getMonth() - dob.getMonth();
-        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) {
-            age--;
-        }
-        return age >= 18 && age <= 120 ? age : null;
+        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) age--;
+        return age;
     } catch {
         return null;
     }
 }
 
+// Calculate age from date of birth (validation: returns null if outside 18-120)
+function calculateAge(dateString) {
+    const age = getAgeFromDate(dateString);
+    return age != null && age >= 18 && age <= 120 ? age : null;
+}
+
 // Make functions globally available
 window.setupPledgeCandidateDropdown = setupPledgeCandidateDropdown;
+window.getAgeFromDate = getAgeFromDate;
+window.parseDateOfBirth = parseDateOfBirth;
 // Setup transportation form tabs
 function setupTransportationFormTabs() {
     const tabButtons = document.querySelectorAll('.transport-form-tab-btn');
