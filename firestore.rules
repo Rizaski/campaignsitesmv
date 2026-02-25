@@ -418,10 +418,17 @@ service cloud.firestore {
                      request.resource.data.email != '';
       
       // Allow unauthenticated users to create calls when accessed via call link
-      // Must have callLinkId and campaignEmail matching the link
       allow create: if request.auth == null &&
                      request.resource.data.callLinkId != null &&
                      request.resource.data.campaignEmail != null;
+
+      // Allow call link users to create calls (works with or without anonymous auth)
+      // When call-recording page uses signInAnonymously, request.auth is set so the rule above fails.
+      // This rule allows create whenever the document has callLinkId and campaignEmail from the link.
+      allow create: if request.resource.data.callLinkId != null &&
+                     request.resource.data.callLinkId != '' &&
+                     request.resource.data.campaignEmail != null &&
+                     request.resource.data.campaignEmail != '';
       
       // Allow list operations for queries and snapshot listeners
       allow list: if request.auth != null;
