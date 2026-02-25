@@ -930,7 +930,6 @@ async function handleCallSubmission(e) {
     const formData = new FormData(form);
     const voterName = formData.get('call-voter-name');
     const callerName = formData.get('call-caller-name');
-    const callDate = formData.get('call-date');
     const callStatus = formData.get('call-status');
     const callNotes = formData.get('call-notes');
     const voterId = formData.get('call-voter-id');
@@ -957,6 +956,7 @@ async function handleCallSubmission(e) {
     try {
         updateLoadingProgress(50, 'Recording call...');
 
+        // Use serverTimestamp() for callDate so new recordings sort to the top (call list is ordered by callDate desc)
         const callData = {
             voterName: voterName.trim(),
             voterId: voterId || '',
@@ -965,7 +965,7 @@ async function handleCallSubmission(e) {
             island: voterIsland || '',
             address: voterAddress || '',
             caller: callerName.trim(),
-            callDate: callDate ? new Date(callDate) : serverTimestamp(),
+            callDate: serverTimestamp(),
             status: callStatus.trim(),
             notes: callNotes || '',
             campaignEmail: currentLinkData.campaignEmail,
@@ -977,28 +977,24 @@ async function handleCallSubmission(e) {
         const callsRef = collection(db, 'calls');
         await addDoc(callsRef, callData);
 
-        // Increment call count for the link
-        // Ensure linkId is available before updating (use from currentLinkData if available)
-        if (!linkId) {
-            if (currentLinkData && currentLinkData.linkId) {
-                linkId = currentLinkData.linkId;
-                console.log('[Call Recording] Using linkId from currentLinkData for increment:', linkId);
-            } else {
-                const urlParams = new URLSearchParams(window.location.search);
-                linkId = urlParams.get('linkId');
-                console.log('[Call Recording] Re-read linkId from URL for increment:', linkId);
+        // Increment call count for the link (non-blocking: don't fail the flow if this fails)
+        try {
+            let linkIdForUpdate = linkId;
+            if (!linkIdForUpdate && currentLinkData && currentLinkData.linkId) {
+                linkIdForUpdate = currentLinkData.linkId;
             }
-        }
-
-        if (!linkId || typeof linkId !== 'string' || linkId.trim() === '') {
-            console.error('[Call Recording] Cannot increment callsMade - linkId is invalid:', linkId);
-            // Don't throw error, just log - call recording should still succeed
-        } else {
-            linkId = linkId.trim();
-            const linkRef = doc(db, 'callLinks', linkId);
-            await updateDoc(linkRef, {
-                callsMade: increment(1)
-            });
+            if (!linkIdForUpdate) {
+                const urlParams = new URLSearchParams(window.location.search);
+                linkIdForUpdate = urlParams.get('linkId');
+            }
+            if (linkIdForUpdate && typeof linkIdForUpdate === 'string' && linkIdForUpdate.trim() !== '') {
+                const linkRef = doc(db, 'callLinks', linkIdForUpdate.trim());
+                await updateDoc(linkRef, {
+                    callsMade: increment(1)
+                });
+            }
+        } catch (incrementErr) {
+            console.warn('[Call Recording] Could not increment callsMade on link (call was still saved):', incrementErr);
         }
 
         updateLoadingProgress(100, 'Call recorded successfully!');
