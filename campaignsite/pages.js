@@ -946,6 +946,42 @@ const pageTemplates = {
             </div>
         </div>
         
+        <div id="calls-themes-chart-section" style="margin-bottom: 24px;">
+            <h3 style="margin: 0 0 12px 0; font-size: 16px; font-weight: 600; color: var(--text-color);">Themes of key comments</h3>
+            <div id="calls-themes-chart" class="chart-container" style="max-width: 560px; background: white; border-radius: 12px; border: 1px solid var(--border-color); padding: 20px;">
+                <p style="color: var(--text-light); text-align: center; padding: 20px; margin: 0;">No comment themes recorded yet. Use &quot;Key comment theme&quot; when recording or editing calls.</p>
+            </div>
+        </div>
+        
+        <div class="share-voter-filters" style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 16px; padding: 12px 16px; background: white; border-radius: 12px; border: 1px solid var(--border-color);">
+            <input type="text" id="calls-search-input" placeholder="Search by voter, phone, caller, notes..." class="search-input" style="min-width: 200px; flex: 1 1 200px;">
+            <select id="calls-filter-island" class="search-input" style="width: 140px;"><option value="">All Islands</option></select>
+            <select id="calls-filter-constituency" class="search-input" style="width: 160px;"><option value="">All Constituencies</option></select>
+            <select id="calls-filter-status" class="search-input" style="width: 140px;">
+                <option value="">All Statuses</option>
+                <option value="answered">Answered</option>
+                <option value="no-answer">No Answer</option>
+                <option value="busy">Busy</option>
+                <option value="pending">Pending</option>
+            </select>
+            <select id="calls-group-by" class="search-input" style="width: 160px;">
+                <option value="">No Grouping</option>
+                <option value="island">Group by Island</option>
+                <option value="constituency">Group by Constituency</option>
+                <option value="caller">Group by Caller</option>
+                <option value="status">Group by Status</option>
+            </select>
+            <select id="calls-sort-by" class="search-input" style="width: 180px;">
+                <option value="dateDesc">Date & Time (newest first)</option>
+                <option value="dateAsc">Date & Time (oldest first)</option>
+                <option value="voterName">Voter Name</option>
+                <option value="caller">Caller</option>
+                <option value="status">Status</option>
+                <option value="island">Island</option>
+                <option value="constituency">Constituency</option>
+            </select>
+        </div>
+        
         <div id="calls-table-detail-wrapper" class="calls-table-detail-wrapper">
             <!-- Calls Table -->
             <div class="calls-table-container" style="display: flex; flex-direction: column; background: white; border-radius: 12px; box-shadow: var(--shadow-sm); border: 1px solid var(--border-color); overflow: hidden; height: 100%;">
@@ -3627,9 +3663,26 @@ function setupSearchListeners(tableType) {
         // Add search if needed - agents table doesn't have search input yet
     }
 
-    // Calls search
+    // Calls search, filter, sort, group
     if (tableType === 'calls') {
-        // Add search if needed - calls table doesn't have search input yet
+        const callsSearch = document.getElementById('calls-search-input');
+        const callsFilterIsland = document.getElementById('calls-filter-island');
+        const callsFilterConstituency = document.getElementById('calls-filter-constituency');
+        const callsFilterStatus = document.getElementById('calls-filter-status');
+        const callsGroupBy = document.getElementById('calls-group-by');
+        const callsSortBy = document.getElementById('calls-sort-by');
+        const refreshCalls = debounce(() => {
+            if (dataCache.calls.data) {
+                paginationState.calls.currentPage = 1;
+                renderCachedCallsData();
+            }
+        }, 300);
+        if (callsSearch) callsSearch.addEventListener('input', refreshCalls);
+        if (callsFilterIsland) callsFilterIsland.addEventListener('change', refreshCalls);
+        if (callsFilterConstituency) callsFilterConstituency.addEventListener('change', refreshCalls);
+        if (callsFilterStatus) callsFilterStatus.addEventListener('change', refreshCalls);
+        if (callsGroupBy) callsGroupBy.addEventListener('change', refreshCalls);
+        if (callsSortBy) callsSortBy.addEventListener('change', refreshCalls);
     }
 
     // Events search
@@ -8805,6 +8858,30 @@ async function loadAgentsData(forceRefresh = false) {
     }
 }
 
+// Helper to build one call row (for renderCachedCallsData)
+function buildCallRow(call) {
+    const data = call;
+    const callDate = data.callDate ? (data.callDate.toDate ? data.callDate.toDate() : new Date(data.callDate)) : new Date();
+    const dateStr = callDate.toLocaleString('default', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+    const voterName = (data.voterName || 'N/A').toString();
+    const phone = (data.phone || data.number || 'N/A').toString();
+    const caller = (data.caller || data.agentName || 'N/A').toString();
+    const status = (data.status || 'pending').toLowerCase();
+    const statusClass = status === 'answered' ? 'status-success' : 'status-pending';
+    const statusText = status === 'answered' ? 'Answered' : (status === 'no-answer' ? 'No Answer' : (status === 'busy' ? 'Busy' : 'Pending'));
+    const constituency = (data.constituency || (window.campaignData && window.campaignData.constituency) || 'N/A').toString();
+    const island = (data.island || 'N/A').toString();
+    const notes = (data.notes || '').toString();
+    const safe = (s) => (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+    return `<td>${safe(voterName)}</td><td>${safe(phone)}</td><td>${safe(constituency)}</td><td>${safe(island)}</td><td>${safe(caller)}</td><td>${dateStr}</td><td><span class="status-badge ${statusClass}">${statusText}</span></td>`;
+}
+
 // Render cached calls data
 function renderCachedCallsData() {
     if (!dataCache.calls.data) return false;
@@ -8812,12 +8889,8 @@ function renderCachedCallsData() {
     const tbody = document.getElementById('calls-table-body');
     if (!tbody) return false;
 
-    const {
-        calls,
-        stats
-    } = dataCache.calls.data;
+    const { calls, stats } = dataCache.calls.data;
 
-    // Update statistics
     const totalEl = document.getElementById('stat-calls-total');
     const answeredEl = document.getElementById('stat-calls-answered');
     const pendingEl = document.getElementById('stat-calls-pending');
@@ -8827,83 +8900,178 @@ function renderCachedCallsData() {
     if (pendingEl) pendingEl.textContent = stats.pending;
     if (successEl) successEl.textContent = `${stats.successRate}%`;
 
-    if (calls.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 40px; color: var(--text-light);">No calls recorded yet</td></tr>';
+    // Themes of key comments chart (use all calls, not filtered)
+    const CALL_COMMENT_THEMES = ['Pledge interest', 'Complaint', 'Request callback', 'Information requested', 'Positive feedback', 'Negative feedback', 'Undecided', 'Other'];
+    const themeCounts = {};
+    CALL_COMMENT_THEMES.forEach(t => { themeCounts[t] = 0; });
+    themeCounts['Not set'] = 0;
+    calls.forEach(c => {
+        const theme = (c.commentTheme || '').trim();
+        if (theme && CALL_COMMENT_THEMES.includes(theme)) themeCounts[theme]++;
+        else themeCounts['Not set']++;
+    });
+    const themesChartEl = document.getElementById('calls-themes-chart');
+    if (themesChartEl) {
+        const themeLabels = [];
+        const themeValues = [];
+        Object.keys(themeCounts).forEach(label => {
+            if (themeCounts[label] > 0) {
+                themeLabels.push(label);
+                themeValues.push(themeCounts[label]);
+            }
+        });
+        if (themeLabels.length > 0) {
+            themesChartEl.innerHTML = createBarChart(themeLabels, themeValues, 'Themes of key comments');
+        } else {
+            themesChartEl.innerHTML = '<p style="color: var(--text-light); text-align: center; padding: 20px; margin: 0;">No comment themes recorded yet. Use &quot;Key comment theme&quot; when recording or editing calls.</p>';
+        }
+    }
+
+    const searchInput = document.getElementById('calls-search-input');
+    const filterIsland = document.getElementById('calls-filter-island');
+    const filterConstituency = document.getElementById('calls-filter-constituency');
+    const filterStatus = document.getElementById('calls-filter-status');
+    const groupByEl = document.getElementById('calls-group-by');
+    const sortByEl = document.getElementById('calls-sort-by');
+
+    const searchTerm = (searchInput && searchInput.value) ? searchInput.value.toLowerCase().trim() : '';
+    const filterIslandVal = (filterIsland && filterIsland.value) ? filterIsland.value.trim() : '';
+    const filterConstituencyVal = (filterConstituency && filterConstituency.value) ? filterConstituency.value.trim() : '';
+    const filterStatusVal = (filterStatus && filterStatus.value) ? filterStatus.value.trim() : '';
+    const groupBy = (groupByEl && groupByEl.value) ? groupByEl.value.trim() : '';
+    const sortBy = (sortByEl && sortByEl.value) ? sortByEl.value.trim() : 'dateDesc';
+
+    // Populate island and constituency dropdowns from data
+    if (calls.length > 0) {
+        const islands = [...new Set(calls.map(c => (c.island || '').trim()).filter(Boolean))].sort();
+        const constituencies = [...new Set(calls.map(c => (c.constituency || '').trim()).filter(Boolean))].sort();
+        if (filterIsland) {
+            const cur = filterIsland.value;
+            filterIsland.innerHTML = '<option value="">All Islands</option>' + islands.map(i => '<option value="' + (i.replace(/"/g, '&quot;')) + '">' + (i.replace(/</g, '&lt;')) + '</option>').join('');
+            if (cur && islands.indexOf(cur) >= 0) filterIsland.value = cur;
+        }
+        if (filterConstituency) {
+            const cur = filterConstituency.value;
+            filterConstituency.innerHTML = '<option value="">All Constituencies</option>' + constituencies.map(c => '<option value="' + (c.replace(/"/g, '&quot;')) + '">' + (c.replace(/</g, '&lt;')) + '</option>').join('');
+            if (cur && constituencies.indexOf(cur) >= 0) filterConstituency.value = cur;
+        }
+    }
+
+    let filtered = calls.filter(c => {
+        if (searchTerm) {
+            const voterName = (c.voterName || '').toLowerCase();
+            const phone = (c.phone || c.number || '').toLowerCase();
+            const caller = (c.caller || c.agentName || '').toLowerCase();
+            const notes = (c.notes || '').toLowerCase();
+            if (!voterName.includes(searchTerm) && !phone.includes(searchTerm) && !caller.includes(searchTerm) && !notes.includes(searchTerm)) return false;
+        }
+        if (filterIslandVal && (c.island || '').trim() !== filterIslandVal) return false;
+        if (filterConstituencyVal && (c.constituency || '').trim() !== filterConstituencyVal) return false;
+        if (filterStatusVal) {
+            const s = (c.status || 'pending').toLowerCase();
+            if (filterStatusVal === 'answered' && s !== 'answered') return false;
+            if (filterStatusVal === 'no-answer' && s !== 'no-answer') return false;
+            if (filterStatusVal === 'busy' && s !== 'busy') return false;
+            if (filterStatusVal === 'pending' && s !== 'pending') return false;
+        }
+        return true;
+    });
+
+    // Sort
+    const getCallDate = (c) => c.callDate ? (c.callDate.toDate ? c.callDate.toDate() : new Date(c.callDate)) : new Date(0);
+    const getStr = (c, key) => (c[key] || '').toString().toLowerCase();
+    if (sortBy === 'dateAsc') filtered.sort((a, b) => getCallDate(a) - getCallDate(b));
+    else if (sortBy === 'dateDesc') filtered.sort((a, b) => getCallDate(b) - getCallDate(a));
+    else if (sortBy === 'voterName') filtered.sort((a, b) => getStr(a, 'voterName').localeCompare(getStr(b, 'voterName')));
+    else if (sortBy === 'caller') filtered.sort((a, b) => getStr(a, 'caller').localeCompare(getStr(b, 'caller')) || getStr(a, 'agentName').localeCompare(getStr(b, 'agentName')));
+    else if (sortBy === 'status') filtered.sort((a, b) => getStr(a, 'status').localeCompare(getStr(b, 'status')));
+    else if (sortBy === 'island') filtered.sort((a, b) => getStr(a, 'island').localeCompare(getStr(b, 'island')));
+    else if (sortBy === 'constituency') filtered.sort((a, b) => getStr(a, 'constituency').localeCompare(getStr(b, 'constituency')));
+
+    if (filtered.length === 0) {
+        const hasFilters = searchTerm || filterIslandVal || filterConstituencyVal || filterStatusVal;
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 40px; color: var(--text-light);">' + (hasFilters ? 'No calls match your filters.' : 'No calls recorded yet') + '</td></tr>';
         renderPagination('calls', 0);
         return true;
     }
 
-    // Pagination
     const state = paginationState.calls;
-    const startIndex = (state.currentPage - 1) * state.recordsPerPage;
-    const endIndex = startIndex + state.recordsPerPage;
-    const paginatedCalls = calls.slice(startIndex, endIndex);
+    const perPage = state.recordsPerPage || 15;
 
-    const fragment = document.createDocumentFragment();
-    paginatedCalls.forEach(call => {
-        const data = call;
-        const callDate = data.callDate ? (data.callDate.toDate ? data.callDate.toDate() : new Date(data.callDate)) : new Date();
-        const dateStr = callDate.toLocaleString('default', {
-            month: 'short',
-            day: 'numeric',
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-        });
-
-        const voterName = data.voterName || 'N/A';
-        const phone = data.phone || data.number || 'N/A';
-        const caller = data.caller || data.agentName || 'N/A';
-        const status = data.status || 'pending';
-        const statusClass = status === 'answered' ? 'status-success' : 'status-pending';
-        const statusText = status === 'answered' ? 'Answered' : (status === 'no-answer' ? 'No Answer' : (status === 'busy' ? 'Busy' : 'Pending'));
-
-        const constituency = data.constituency || (window.campaignData && window.campaignData.constituency) || 'N/A';
-        const island = data.island || 'N/A';
-
+    function addCallRow(call, fragment) {
         const row = document.createElement('tr');
         row.className = 'call-table-row';
         row.style.cursor = 'pointer';
         row.setAttribute('data-call-id', call.id);
-        row.onclick = () => {
-            viewCallDetails(call.id);
-        };
-        row.onmouseenter = function() {
-            this.style.backgroundColor = 'var(--light-color)';
-        };
-        row.onmouseleave = function() {
-            if (!this.classList.contains('selected')) {
-                this.style.backgroundColor = '';
-            }
-        };
-        row.innerHTML = `
-            <td>${voterName}</td>
-            <td>${phone}</td>
-            <td>${constituency}</td>
-            <td>${island}</td>
-            <td>${caller}</td>
-            <td>${dateStr}</td>
-            <td><span class="status-badge ${statusClass}">${statusText}</span></td>
-        `;
+        row.innerHTML = buildCallRow(call);
+        row.onclick = () => viewCallDetails(call.id);
+        row.onmouseenter = function() { this.style.backgroundColor = 'var(--light-color)'; };
+        row.onmouseleave = function() { if (!this.classList.contains('selected')) this.style.backgroundColor = ''; };
         fragment.appendChild(row);
-    });
+    }
 
-    // Use requestAnimationFrame for smooth rendering
+    if (groupBy && (groupBy === 'island' || groupBy === 'constituency' || groupBy === 'caller' || groupBy === 'status')) {
+        const grouped = {};
+        filtered.forEach(c => {
+            let key = '';
+            if (groupBy === 'island') key = (c.island || '').trim() || 'Unknown';
+            else if (groupBy === 'constituency') key = (c.constituency || '').trim() || 'Unknown';
+            else if (groupBy === 'caller') key = (c.caller || c.agentName || '').trim() || 'Unknown';
+            else key = (c.status || 'pending').toLowerCase();
+            if (!grouped[key]) grouped[key] = [];
+            grouped[key].push(c);
+        });
+        const groupLabels = { island: 'Island', constituency: 'Constituency', caller: 'Caller', status: 'Status' };
+        const groupLabel = groupLabels[groupBy] || groupBy;
+        const sortedKeys = Object.keys(grouped).sort();
+        const pageOfGroups = [];
+        let acc = [], accCount = 0;
+        sortedKeys.forEach(key => {
+            const list = grouped[key];
+            if (accCount + list.length > perPage && accCount > 0) {
+                pageOfGroups.push(acc);
+                acc = [];
+                accCount = 0;
+            }
+            acc.push({ key, calls: list });
+            accCount += list.length;
+        });
+        if (acc.length) pageOfGroups.push(acc);
+        const totalPages = Math.max(1, pageOfGroups.length);
+        state.currentPage = Math.min(Math.max(1, state.currentPage), totalPages);
+        const currentPageGroups = pageOfGroups[state.currentPage - 1] || [];
+        const fragment = document.createDocumentFragment();
+        currentPageGroups.forEach(g => {
+            const headerRow = document.createElement('tr');
+            headerRow.style.background = 'var(--primary-50)';
+            headerRow.style.fontWeight = '600';
+            headerRow.innerHTML = '<td colspan="7" style="padding: 10px 12px;">' + (groupLabel + ': ' + (g.key === 'answered' ? 'Answered' : g.key === 'no-answer' ? 'No Answer' : g.key)).replace(/</g, '&lt;') + '</td>';
+            fragment.appendChild(headerRow);
+            g.calls.forEach(c => addCallRow(c, fragment));
+        });
+        requestAnimationFrame(() => {
+            tbody.textContent = '';
+            tbody.appendChild(fragment);
+        });
+        renderPagination('calls', filtered.length);
+        return true;
+    }
+
+    const totalFiltered = filtered.length;
+    const totalPages = Math.max(1, Math.ceil(totalFiltered / perPage));
+    state.currentPage = Math.min(Math.max(1, state.currentPage), totalPages);
+    const start = (state.currentPage - 1) * perPage;
+    const paginatedCalls = filtered.slice(start, start + perPage);
+
+    const fragment = document.createDocumentFragment();
+    paginatedCalls.forEach(c => addCallRow(c, fragment));
+
     requestAnimationFrame(() => {
         tbody.textContent = '';
         tbody.appendChild(fragment);
-
-        // Attach event listeners for view details buttons
-        tbody.querySelectorAll('[onclick*="viewCallDetails"]').forEach(btn => {
-            const callId = btn.getAttribute('onclick').match(/'([^']+)'/)[1];
-            if (callId) {
-                btn.onclick = () => viewCallDetails(callId);
-            }
-        });
     });
 
-    // Render pagination
-    renderPagination('calls', calls.length);
+    renderPagination('calls', filtered.length);
     return true;
 }
 

@@ -946,6 +946,42 @@ const pageTemplates = {
             </div>
         </div>
         
+        <div id="calls-themes-chart-section" style="margin-bottom: 24px;">
+            <h3 style="margin: 0 0 12px 0; font-size: 16px; font-weight: 600; color: var(--text-color);">Themes of key comments</h3>
+            <div id="calls-themes-chart" class="chart-container" style="max-width: 560px; background: white; border-radius: 12px; border: 1px solid var(--border-color); padding: 20px;">
+                <p style="color: var(--text-light); text-align: center; padding: 20px; margin: 0;">No comment themes recorded yet. Use &quot;Key comment theme&quot; when recording or editing calls.</p>
+            </div>
+        </div>
+        
+        <div class="share-voter-filters" style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 16px; padding: 12px 16px; background: white; border-radius: 12px; border: 1px solid var(--border-color);">
+            <input type="text" id="calls-search-input" placeholder="Search by voter, phone, caller, notes..." class="search-input" style="min-width: 200px; flex: 1 1 200px;">
+            <select id="calls-filter-island" class="search-input" style="width: 140px;"><option value="">All Islands</option></select>
+            <select id="calls-filter-constituency" class="search-input" style="width: 160px;"><option value="">All Constituencies</option></select>
+            <select id="calls-filter-status" class="search-input" style="width: 140px;">
+                <option value="">All Statuses</option>
+                <option value="answered">Answered</option>
+                <option value="no-answer">No Answer</option>
+                <option value="busy">Busy</option>
+                <option value="pending">Pending</option>
+            </select>
+            <select id="calls-group-by" class="search-input" style="width: 160px;">
+                <option value="">No Grouping</option>
+                <option value="island">Group by Island</option>
+                <option value="constituency">Group by Constituency</option>
+                <option value="caller">Group by Caller</option>
+                <option value="status">Group by Status</option>
+            </select>
+            <select id="calls-sort-by" class="search-input" style="width: 180px;">
+                <option value="dateDesc">Date & Time (newest first)</option>
+                <option value="dateAsc">Date & Time (oldest first)</option>
+                <option value="voterName">Voter Name</option>
+                <option value="caller">Caller</option>
+                <option value="status">Status</option>
+                <option value="island">Island</option>
+                <option value="constituency">Constituency</option>
+            </select>
+        </div>
+        
         <div id="calls-table-detail-wrapper" class="calls-table-detail-wrapper">
             <!-- Calls Table -->
             <div class="calls-table-container" style="display: flex; flex-direction: column; background: white; border-radius: 12px; box-shadow: var(--shadow-sm); border: 1px solid var(--border-color); overflow: hidden; height: 100%;">
@@ -3625,9 +3661,26 @@ function setupSearchListeners(tableType) {
         // Add search if needed - agents table doesn't have search input yet
     }
 
-    // Calls search
+    // Calls search, filter, sort, group
     if (tableType === 'calls') {
-        // Add search if needed - calls table doesn't have search input yet
+        const callsSearch = document.getElementById('calls-search-input');
+        const callsFilterIsland = document.getElementById('calls-filter-island');
+        const callsFilterConstituency = document.getElementById('calls-filter-constituency');
+        const callsFilterStatus = document.getElementById('calls-filter-status');
+        const callsGroupBy = document.getElementById('calls-group-by');
+        const callsSortBy = document.getElementById('calls-sort-by');
+        const refreshCalls = debounce(() => {
+            if (dataCache.calls.data) {
+                paginationState.calls.currentPage = 1;
+                renderCachedCallsData();
+            }
+        }, 300);
+        if (callsSearch) callsSearch.addEventListener('input', refreshCalls);
+        if (callsFilterIsland) callsFilterIsland.addEventListener('change', refreshCalls);
+        if (callsFilterConstituency) callsFilterConstituency.addEventListener('change', refreshCalls);
+        if (callsFilterStatus) callsFilterStatus.addEventListener('change', refreshCalls);
+        if (callsGroupBy) callsGroupBy.addEventListener('change', refreshCalls);
+        if (callsSortBy) callsSortBy.addEventListener('change', refreshCalls);
     }
 
     // Events search
@@ -8938,8 +8991,35 @@ function renderCachedCallsData() {
     if (pendingEl) pendingEl.textContent = stats.pending;
     if (successEl) successEl.textContent = `${stats.successRate}%`;
 
+    // Themes of key comments chart
+    const CALL_COMMENT_THEMES = ['Pledge interest', 'Complaint', 'Request callback', 'Information requested', 'Positive feedback', 'Negative feedback', 'Undecided', 'Other'];
+    const themeCounts = {};
+    CALL_COMMENT_THEMES.forEach(t => { themeCounts[t] = 0; });
+    themeCounts['Not set'] = 0;
+    calls.forEach(c => {
+        const theme = (c.commentTheme || '').trim();
+        if (theme && CALL_COMMENT_THEMES.includes(theme)) themeCounts[theme]++;
+        else themeCounts['Not set']++;
+    });
+    const themesChartEl = document.getElementById('calls-themes-chart');
+    if (themesChartEl) {
+        const themeLabels = [];
+        const themeValues = [];
+        Object.keys(themeCounts).forEach(label => {
+            if (themeCounts[label] > 0) {
+                themeLabels.push(label);
+                themeValues.push(themeCounts[label]);
+            }
+        });
+        if (themeLabels.length > 0) {
+            themesChartEl.innerHTML = createBarChart(themeLabels, themeValues, 'Themes of key comments');
+        } else {
+            themesChartEl.innerHTML = '<p style="color: var(--text-light); text-align: center; padding: 20px; margin: 0;">No comment themes recorded yet. Use &quot;Key comment theme&quot; when recording or editing calls.</p>';
+        }
+    }
+
     if (calls.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 40px; color: var(--text-light);">No calls recorded yet</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 40px; color: var(--text-light);">No calls recorded yet</td></tr>';
         renderPagination('calls', 0);
         return true;
     }

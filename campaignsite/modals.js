@@ -893,6 +893,20 @@ function getCallFormTemplate() {
                 <label for="call-notes">Notes</label>
                 <textarea id="call-notes" name="call-notes" rows="4" placeholder="Enter call notes or conversation summary"></textarea>
             </div>
+            <div class="form-group">
+                <label for="call-comment-theme">Key comment theme</label>
+                <select id="call-comment-theme" name="call-comment-theme" style="width: 100%; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: 6px;">
+                    <option value="">— None —</option>
+                    <option value="Pledge interest">Pledge interest</option>
+                    <option value="Complaint">Complaint</option>
+                    <option value="Request callback">Request callback</option>
+                    <option value="Information requested">Information requested</option>
+                    <option value="Positive feedback">Positive feedback</option>
+                    <option value="Negative feedback">Negative feedback</option>
+                    <option value="Undecided">Undecided</option>
+                    <option value="Other">Other</option>
+                </select>
+            </div>
             <div id="modal-error" class="error-message" style="display: none;"></div>
             <div class="modal-footer">
                 <button type="button" class="btn-secondary btn-compact" onclick="closeModal()">Cancel</button>
@@ -1750,6 +1764,7 @@ CAND - $ {
                 const callConstituency = formData.get('call-constituency');
                 const callIsland = formData.get('call-voter-island');
                 
+                const callCommentTheme = (formData.get('call-comment-theme') || '').trim() || null;
                 dataToSave = {
                     voterName: callVoterName.trim(),
                     voterId: cleanFormValue(callVoterId),
@@ -1759,6 +1774,7 @@ CAND - $ {
                     callDate: callDateValue || serverTimestamp(),
                     status: callStatus.trim(),
                     notes: cleanFormValue(callNotes),
+                    commentTheme: callCommentTheme,
                     constituency: cleanFormValue(callConstituency),
                     island: cleanFormValue(callIsland),
                     [emailField]: window.userEmail,
@@ -4002,6 +4018,9 @@ async function populateCallEditForm(callId) {
         }
 
         if (callNotesTextarea) callNotesTextarea.value = callData.notes || '';
+
+        const callCommentThemeSelect = document.getElementById('call-comment-theme');
+        if (callCommentThemeSelect && callData.commentTheme) callCommentThemeSelect.value = callData.commentTheme;
 
         console.log('[populateCallEditForm] Form populated successfully');
     } catch (error) {
