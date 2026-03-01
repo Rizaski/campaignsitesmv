@@ -4229,6 +4229,64 @@ body.sidebar-collapsed .main-content {
     font-weight: 500;
 }
 
+/* Call Management filter panel – card-style search + dropdowns (like voters filter) */
+.calls-filter-panel {
+    margin-bottom: 20px;
+    padding: 20px;
+    background: white;
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.calls-filter-panel .calls-filter-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+}
+
+.calls-filter-panel #calls-search-input {
+    width: 100%;
+    padding: 12px 16px;
+    margin-bottom: 14px;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    font-size: 14px;
+    background: var(--light-color);
+    color: var(--text-color);
+    box-sizing: border-box;
+}
+
+.calls-filter-panel #calls-search-input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(111, 193, 218, 0.15);
+}
+
+.calls-filter-panel .calls-filter-select {
+    flex: 1;
+    min-width: 140px;
+    padding: 10px 36px 10px 14px;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    font-size: 14px;
+    background: white;
+    color: var(--text-color);
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+}
+
+.calls-filter-panel .calls-filter-select:focus {
+    outline: none;
+    border-color: var(--primary-color);
+}
+
 .share-voter-filters {
     padding-bottom: 20px;
     display: flex;
@@ -4623,6 +4681,64 @@ body.sidebar-collapsed .main-content {
     color: var(--text-light);
     font-size: 1rem;
     font-weight: 500;
+}
+
+/* Call Management filter panel – card-style search + dropdowns (like voters filter) */
+.calls-filter-panel {
+    margin-bottom: 20px;
+    padding: 20px;
+    background: white;
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.calls-filter-panel .calls-filter-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+}
+
+.calls-filter-panel #calls-search-input {
+    width: 100%;
+    padding: 12px 16px;
+    margin-bottom: 14px;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    font-size: 14px;
+    background: var(--light-color);
+    color: var(--text-color);
+    box-sizing: border-box;
+}
+
+.calls-filter-panel #calls-search-input:focus {
+    outline: none;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(111, 193, 218, 0.15);
+}
+
+.calls-filter-panel .calls-filter-select {
+    flex: 1;
+    min-width: 140px;
+    padding: 10px 36px 10px 14px;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    font-size: 14px;
+    background: white;
+    color: var(--text-color);
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+}
+
+.calls-filter-panel .calls-filter-select:focus {
+    outline: none;
+    border-color: var(--primary-color);
 }
 
 .share-voter-filters {

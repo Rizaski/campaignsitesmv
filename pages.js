@@ -946,33 +946,35 @@ const pageTemplates = {
             </div>
         </div>
         
-        <div class="share-voter-filters" style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 16px; padding: 12px 16px; background: white; border-radius: 12px; border: 1px solid var(--border-color);">
-            <input type="text" id="calls-search-input" placeholder="Search by voter, phone, caller, notes..." class="search-input" style="min-width: 200px; flex: 1 1 200px;">
-            <select id="calls-filter-island" class="search-input" style="width: 140px;"><option value="">All Islands</option></select>
-            <select id="calls-filter-constituency" class="search-input" style="width: 160px;"><option value="">All Constituencies</option></select>
-            <select id="calls-filter-status" class="search-input" style="width: 140px;">
-                <option value="">All Statuses</option>
-                <option value="answered">Answered</option>
-                <option value="no-answer">No Answer</option>
-                <option value="busy">Busy</option>
-                <option value="pending">Pending</option>
-            </select>
-            <select id="calls-group-by" class="search-input" style="width: 160px;">
-                <option value="">No Grouping</option>
-                <option value="island">Group by Island</option>
-                <option value="constituency">Group by Constituency</option>
-                <option value="caller">Group by Caller</option>
-                <option value="status">Group by Status</option>
-            </select>
-            <select id="calls-sort-by" class="search-input" style="width: 180px;">
-                <option value="dateDesc">Date & Time (newest first)</option>
-                <option value="dateAsc">Date & Time (oldest first)</option>
-                <option value="voterName">Voter Name</option>
-                <option value="caller">Caller</option>
-                <option value="status">Status</option>
-                <option value="island">Island</option>
-                <option value="constituency">Constituency</option>
-            </select>
+        <div id="calls-filter-panel" class="calls-filter-panel">
+            <input type="text" id="calls-search-input" placeholder="Search by voter, phone, caller, notes...">
+            <div class="calls-filter-row">
+                <select id="calls-filter-island" class="calls-filter-select"><option value="">All Islands</option></select>
+                <select id="calls-filter-constituency" class="calls-filter-select"><option value="">All Constituencies</option></select>
+                <select id="calls-filter-status" class="calls-filter-select">
+                    <option value="">All Statuses</option>
+                    <option value="answered">Answered</option>
+                    <option value="no-answer">No Answer</option>
+                    <option value="busy">Busy</option>
+                    <option value="pending">Pending</option>
+                </select>
+                <select id="calls-group-by" class="calls-filter-select">
+                    <option value="">No Grouping</option>
+                    <option value="island">Group by Island</option>
+                    <option value="constituency">Group by Constituency</option>
+                    <option value="caller">Group by Caller</option>
+                    <option value="status">Group by Status</option>
+                </select>
+                <select id="calls-sort-by" class="calls-filter-select">
+                    <option value="dateDesc">Date & Time (newest first)</option>
+                    <option value="dateAsc">Date & Time (oldest first)</option>
+                    <option value="voterName">Voter Name</option>
+                    <option value="caller">Caller</option>
+                    <option value="status">Status</option>
+                    <option value="island">Island</option>
+                    <option value="constituency">Constituency</option>
+                </select>
+            </div>
         </div>
         
         <div id="calls-table-detail-wrapper" class="calls-table-detail-wrapper">
