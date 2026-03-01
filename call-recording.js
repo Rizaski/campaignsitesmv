@@ -369,21 +369,6 @@ async function loadCallForm(container) {
                 <textarea id="call-notes" name="call-notes" rows="4" placeholder="Enter any additional notes about the call"></textarea>
             </div>
 
-            <div class="form-group">
-                <label for="call-comment-theme">Key comment theme</label>
-                <select id="call-comment-theme" name="call-comment-theme" style="width: 100%; padding: 12px 16px; border: 2px solid var(--border-color); border-radius: 8px; font-size: 14px;">
-                    <option value="">— None —</option>
-                    <option value="Pledge interest">Pledge interest</option>
-                    <option value="Complaint">Complaint</option>
-                    <option value="Request callback">Request callback</option>
-                    <option value="Information requested">Information requested</option>
-                    <option value="Positive feedback">Positive feedback</option>
-                    <option value="Negative feedback">Negative feedback</option>
-                    <option value="Undecided">Undecided</option>
-                    <option value="Other">Other</option>
-                </select>
-            </div>
-
             <div id="call-recording-error" class="error-message" style="display: none;"></div>
 
             <div class="modal-footer" style="margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--border-color);">
@@ -983,7 +968,6 @@ async function handleCallSubmission(e) {
             callDate: serverTimestamp(),
             status: callStatus.trim(),
             notes: callNotes || '',
-            commentTheme: (formData.get('call-comment-theme') || '').trim() || null,
             campaignEmail: currentLinkData.campaignEmail,
             callLinkId: linkId,
             createdAt: serverTimestamp()

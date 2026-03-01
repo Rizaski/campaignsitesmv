@@ -946,13 +946,6 @@ const pageTemplates = {
             </div>
         </div>
         
-        <div id="calls-themes-chart-section" style="margin-bottom: 24px;">
-            <h3 style="margin: 0 0 12px 0; font-size: 16px; font-weight: 600; color: var(--text-color);">Themes of key comments</h3>
-            <div id="calls-themes-chart" class="chart-container" style="max-width: 560px; background: white; border-radius: 12px; border: 1px solid var(--border-color); padding: 20px;">
-                <p style="color: var(--text-light); text-align: center; padding: 20px; margin: 0;">No comment themes recorded yet. Use &quot;Key comment theme&quot; when recording or editing calls.</p>
-            </div>
-        </div>
-        
         <div class="share-voter-filters" style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 16px; padding: 12px 16px; background: white; border-radius: 12px; border: 1px solid var(--border-color);">
             <input type="text" id="calls-search-input" placeholder="Search by voter, phone, caller, notes..." class="search-input" style="min-width: 200px; flex: 1 1 200px;">
             <select id="calls-filter-island" class="search-input" style="width: 140px;"><option value="">All Islands</option></select>
@@ -8899,33 +8892,6 @@ function renderCachedCallsData() {
     if (answeredEl) answeredEl.textContent = stats.answered;
     if (pendingEl) pendingEl.textContent = stats.pending;
     if (successEl) successEl.textContent = `${stats.successRate}%`;
-
-    // Themes of key comments chart (use all calls, not filtered)
-    const CALL_COMMENT_THEMES = ['Pledge interest', 'Complaint', 'Request callback', 'Information requested', 'Positive feedback', 'Negative feedback', 'Undecided', 'Other'];
-    const themeCounts = {};
-    CALL_COMMENT_THEMES.forEach(t => { themeCounts[t] = 0; });
-    themeCounts['Not set'] = 0;
-    calls.forEach(c => {
-        const theme = (c.commentTheme || '').trim();
-        if (theme && CALL_COMMENT_THEMES.includes(theme)) themeCounts[theme]++;
-        else themeCounts['Not set']++;
-    });
-    const themesChartEl = document.getElementById('calls-themes-chart');
-    if (themesChartEl) {
-        const themeLabels = [];
-        const themeValues = [];
-        Object.keys(themeCounts).forEach(label => {
-            if (themeCounts[label] > 0) {
-                themeLabels.push(label);
-                themeValues.push(themeCounts[label]);
-            }
-        });
-        if (themeLabels.length > 0) {
-            themesChartEl.innerHTML = createBarChart(themeLabels, themeValues, 'Themes of key comments');
-        } else {
-            themesChartEl.innerHTML = '<p style="color: var(--text-light); text-align: center; padding: 20px; margin: 0;">No comment themes recorded yet. Use &quot;Key comment theme&quot; when recording or editing calls.</p>';
-        }
-    }
 
     const searchInput = document.getElementById('calls-search-input');
     const filterIsland = document.getElementById('calls-filter-island');
