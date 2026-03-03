@@ -128,6 +128,18 @@ const pageTemplates = {
             </div>
             
             <div class="settings-section">
+                <h2>Cache &amp; memory</h2>
+                <div class="settings-card">
+                    <div class="setting-item">
+                        <div class="setting-info">
+                            <h3>Clear app cache</h3>
+                            <p>Clear in-memory cache (tables, images). Data will reload from the server when you open each section again.</p>
+                        </div>
+                        <div class="setting-value">
+                            <button type="button" class="icon-btn-sm" id="settings-clear-cache-btn">Clear cache</button>
+                        </div>
+                    </div>
+                </div>
             </div>
             
             <div class="settings-section">
@@ -5086,7 +5098,7 @@ function clearCache(cacheType) {
     }
 }
 
-// Function to clear all caches
+// Function to clear all caches (data cache + in-memory image URL cache)
 function clearAllCaches() {
     Object.keys(dataCache).forEach(key => {
         if (key !== 'CACHE_DURATION' && dataCache[key]) {
@@ -5095,6 +5107,9 @@ function clearAllCaches() {
             dataCache[key].userEmail = null;
         }
     });
+    if (typeof imageFilenameCache !== 'undefined' && imageFilenameCache && typeof imageFilenameCache.clear === 'function') {
+        imageFilenameCache.clear();
+    }
 }
 
 // Compute age in years from DOB (Timestamp, Date, or string). Used when window.getAgeFromDate is not available.
@@ -24868,6 +24883,21 @@ function initializeSettingsToggles() {
             localStorage.setItem('pushNotificationsEnabled', enabled.toString());
             console.log('Push notifications:', enabled);
             // TODO: Implement push notifications functionality
+        });
+    }
+
+    // Clear cache button (Settings)
+    const clearCacheBtn = document.getElementById('settings-clear-cache-btn');
+    if (clearCacheBtn) {
+        clearCacheBtn.addEventListener('click', () => {
+            if (typeof window.clearAllCaches === 'function') {
+                window.clearAllCaches();
+            }
+            if (typeof window.showSuccess === 'function') {
+                window.showSuccess('Cache cleared. Data will reload when you open each section.', 'Cache cleared');
+            } else {
+                alert('Cache cleared. Data will reload when you open each section.');
+            }
         });
     }
 }

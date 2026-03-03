@@ -887,6 +887,15 @@ function getCallFormTemplate() {
                 </select>
             </div>
             <div class="form-group">
+                <label for="call-pledge">Pledge</label>
+                <select id="call-pledge" name="call-pledge" style="width: 100%; padding: 12px 16px; border: 2px solid var(--border-color); border-radius: 8px; font-size: 14px;">
+                    <option value="">— None —</option>
+                    <option value="yes">Yes - Will Support</option>
+                    <option value="no">No - Will Not Support</option>
+                    <option value="undecided">Undecided</option>
+                </select>
+            </div>
+            <div class="form-group">
                 <label for="call-notes">Notes</label>
                 <textarea id="call-notes" name="call-notes" rows="4" placeholder="Enter call notes or conversation summary"></textarea>
             </div>
@@ -1724,6 +1733,7 @@ CAND - $ {
                 const callCallerName = callCallerNameDropdown || callCallerNameInput;
                 const callDateValue = formData.get('call-date');
                 const callStatus = formData.get('call-status');
+                const callPledge = (formData.get('call-pledge') || '').trim() || null;
                 const callNotes = formData.get('call-notes');
                 const callVoterDocumentId = formData.get('call-voter-id-hidden'); // Get hidden voter ID
 
@@ -1753,6 +1763,7 @@ CAND - $ {
                     caller: callCallerName.trim(),
                     callDate: validCallDate || serverTimestamp(),
                     status: callStatus.trim(),
+                    pledge: callPledge,
                     notes: cleanFormValue(callNotes),
                     constituency: cleanFormValue(callConstituency),
                     island: cleanFormValue(callIsland),
@@ -3975,6 +3986,7 @@ async function populateCallEditForm(callId) {
         const callerNameInput = document.getElementById('call-caller-name');
         const callDateInput = document.getElementById('call-date');
         const callStatusSelect = document.getElementById('call-status');
+        const callPledgeSelect = document.getElementById('call-pledge');
         const callNotesTextarea = document.getElementById('call-notes');
 
         if (voterNameInput) voterNameInput.value = callData.voterName || '';
@@ -3985,6 +3997,7 @@ async function populateCallEditForm(callId) {
         if (voterIdHidden && callData.voterDocumentId) voterIdHidden.value = callData.voterDocumentId;
         if (callerNameInput) callerNameInput.value = callData.caller || '';
         if (callStatusSelect) callStatusSelect.value = callData.status || 'answered';
+        if (callPledgeSelect) callPledgeSelect.value = callData.pledge || '';
 
         // Format date for datetime-local input
         if (callDateInput && callData.callDate) {
