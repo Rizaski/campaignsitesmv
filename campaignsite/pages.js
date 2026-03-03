@@ -2022,89 +2022,39 @@ async function loadDashboardData(forceRefresh = false) {
         );
         window.dashboardListeners.push(unsubEvents);
 
-        // Calls listener - filter via voter data (client-side filtering)
-        const unsubCalls = onSnapshot(callsQuery,
-            async (snapshot) => {
-                    const globalFilter = window.globalFilterState || {
-                        constituency: null,
-                        island: null
-                    };
-                    let filteredCount = snapshot.size;
+        // Calls listener - lightweight filtering using call document fields only
+        const unsubCalls = onSnapshot(
+            callsQuery,
+            (snapshot) => {
+                const globalFilter = window.globalFilterState || {
+                    constituency: null,
+                    island: null
+                };
 
-                    // If global filter is active, filter calls via voter data
+                let filteredCount = 0;
+                snapshot.forEach(callDoc => {
+                    const callData = callDoc.data() || {};
+                    let matches = true;
+
                     if (globalFilter.initialized && (globalFilter.constituency || globalFilter.island)) {
-                        const {
-                            doc,
-                            getDoc
-                        } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
-                        const voterIds = new Set();
-                        snapshot.forEach(callDoc => {
-                            const callData = callDoc.data();
-                            if (callData.voterDocumentId) voterIds.add(callData.voterDocumentId);
-                            else if (callData.voterId) voterIds.add(callData.voterId);
-                        });
-
-                        // Fetch voter data
-                        const voterDataMap = new Map();
-                        if (voterIds.size > 0) {
-                            const voterPromises = Array.from(voterIds).map(async (voterId) => {
-                                try {
-                                    const voterDocRef = doc(window.db, 'voters', voterId);
-                                    const voterDoc = await getDoc(voterDocRef);
-                                    if (voterDoc.exists()) {
-                                        return {
-                                            id: voterId,
-                                            data: voterDoc.data()
-                                        };
-                                    }
-                                } catch (error) {
-                                    console.warn(`Could not fetch voter for call filter: ${voterId}`, error);
-                                }
-                                return null;
-                            });
-                            const voterResults = await Promise.all(voterPromises);
-                            voterResults.forEach(result => {
-                                if (result) voterDataMap.set(result.id, result.data);
-                            });
+                        if (globalFilter.island) {
+                            matches = (callData.island || '') === globalFilter.island;
+                        } else if (globalFilter.constituency) {
+                            matches = (callData.constituency || '') === globalFilter.constituency;
                         }
-
-                        // Filter calls
-                        filteredCount = 0;
-                        snapshot.forEach(callDoc => {
-                            const callData = callDoc.data();
-                            const voterId = callData.voterDocumentId || callData.voterId;
-                            if (!voterId) {
-                                filteredCount++; // Include calls without voter reference
-                                return;
-                            }
-
-                            const voterData = voterDataMap.get(voterId);
-                            if (!voterData) {
-                                filteredCount++; // Include if voter data not loaded
-                                return;
-                            }
-
-                            let matches = true;
-                            // Island takes priority - if island selected, filter by island only
-                            if (globalFilter.island) {
-                                matches = voterData.island === globalFilter.island;
-                            } else if (globalFilter.constituency) {
-                                // If constituency selected but no island, filter by constituency only
-                                matches = voterData.constituency === globalFilter.constituency;
-                            }
-
-                            if (matches) filteredCount++;
-                        });
                     }
 
-                    updateStat('stat-calls', filteredCount);
-                    if (statsLoaded < totalStats) checkComplete();
-                },
-                (error) => {
-                    console.warn('Error listening to calls:', error);
-                    updateStat('stat-calls', 0);
-                    if (statsLoaded < totalStats) checkComplete();
-                }
+                    if (matches) filteredCount++;
+                });
+
+                updateStat('stat-calls', filteredCount);
+                if (statsLoaded < totalStats) checkComplete();
+            },
+            (error) => {
+                console.warn('Error listening to calls:', error);
+                updateStat('stat-calls', 0);
+                if (statsLoaded < totalStats) checkComplete();
+            }
         );
         window.dashboardListeners.push(unsubCalls);
 
@@ -21316,6 +21266,9 @@ function createCallDetailHTML(callData, voterData = null) {
         (callData.status === 'no-answer' ? 'No Answer' :
             (callData.status === 'busy' ? 'Busy' : 'Failed'));
 
+    const pledgeValue = (callData.pledge || '').toString().trim().toLowerCase();
+    const pledgeText = pledgeValue === 'yes' ? 'Yes - Will Support' : pledgeValue === 'no' ? 'No - Will Not Support' : pledgeValue === 'undecided' ? 'Undecided' : (callData.pledge && callData.pledge.trim()) ? callData.pledge : '— None —';
+
     return `
         <div class="call-detail-header" style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 16px; border-bottom: 2px solid var(--border-color); margin-bottom: 16px;">
             <div style="display: flex; gap: 8px; align-items: center;">
@@ -21383,6 +21336,10 @@ function createCallDetailHTML(callData, voterData = null) {
                 <div>
                     <label style="display: block; font-size: 11px; font-weight: 600; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">Status</label>
                     <p id="call-detail-status" style="margin: 0;"><span class="status-badge ${statusClass}" style="padding: 6px 12px; border-radius: 16px; font-size: 12px; font-weight: 600;">${statusText}</span></p>
+                </div>
+                <div>
+                    <label style="display: block; font-size: 11px; font-weight: 600; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">Pledge</label>
+                    <p id="call-detail-pledge" style="margin: 0; color: var(--text-color); font-size: 14px; font-weight: 500;">${pledgeText}</p>
                 </div>
                 <div>
                     <label style="display: block; font-size: 11px; font-weight: 600; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">Phone</label>

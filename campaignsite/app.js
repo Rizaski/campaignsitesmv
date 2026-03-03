@@ -2377,19 +2377,18 @@ async function loadWorkspace(data) {
                     trackPageLoad('dashboard');
                 }
 
-                // Load voter data and track it
+                // Voter table can be very large, so don't block initial login on it.
+                // Mark the page as ready immediately and load voters in the background.
+                updateLoadingProgress(50, 'Preparing application...');
+                trackPageLoad('voters');
                 if (typeof loadVotersData === 'function') {
-                    updateLoadingProgress(50, 'Loading voter data...');
-                    try {
-                        await loadVotersData(true);
-                        trackPageLoad('voters');
-                        console.log('[loadWorkspace] Voter data loaded ✓');
-                    } catch (error) {
-                        console.error('[loadWorkspace] Error loading voter data:', error);
-                        trackPageLoad('voters'); // Track even on error to prevent hanging
-                    }
-                } else {
-                    trackPageLoad('voters');
+                    setTimeout(() => {
+                        try {
+                            loadVotersData(true);
+                        } catch (error) {
+                            console.error('[loadWorkspace] Background voter data load failed:', error);
+                        }
+                    }, 0);
                 }
 
                 // Mark other pages as ready (they load on-demand when navigated to)

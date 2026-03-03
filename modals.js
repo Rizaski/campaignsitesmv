@@ -3038,22 +3038,23 @@ CAND - $ {
                         console.log('[handleFormSubmit] Call made from regular interface (not from link)');
                     }
                 }
-                console.log(`[handleFormSubmit] Verifying saved data...`);
-
-                // Verify the data was saved correctly
-                try {
-                    const {
-                        doc,
-                        getDoc
-                    } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
-                    const savedDoc = await getDoc(docRef);
-                    if (savedDoc.exists()) {
-                        console.log(`[handleFormSubmit] Verified saved data:`, JSON.stringify(savedDoc.data(), null, 2));
-                    } else {
-                        console.error(`[handleFormSubmit] Document was not saved!`);
+                // Optionally verify saved data for heavier entities, but skip for calls to keep call saving fast
+                if (type !== 'call') {
+                    console.log(`[handleFormSubmit] Verifying saved data...`);
+                    try {
+                        const {
+                            doc,
+                            getDoc
+                        } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
+                        const savedDoc = await getDoc(docRef);
+                        if (savedDoc.exists()) {
+                            console.log(`[handleFormSubmit] Verified saved data:`, JSON.stringify(savedDoc.data(), null, 2));
+                        } else {
+                            console.error(`[handleFormSubmit] Document was not saved!`);
+                        }
+                    } catch (verifyError) {
+                        console.error(`[handleFormSubmit] Error verifying saved data:`, verifyError);
                     }
-                } catch (verifyError) {
-                    console.error(`[handleFormSubmit] Error verifying saved data:`, verifyError);
                 }
 
                 // Note: Voter currentLocation update is handled in the pledge creation loop above
@@ -3086,9 +3087,9 @@ CAND - $ {
                 // Reload table data immediately after saving
                 reloadTableData(type, editVoterId, editPledgeId, editAgentId, editCandidateId);
                 
-                // Trigger comprehensive refresh to sync with Firebase
-                if (window.refreshApplicationData) {
-                    // Delay refresh slightly to ensure Firebase write is complete
+                // Trigger comprehensive refresh to sync with Firebase for heavy entities,
+                // but skip for calls to avoid slowing call management save
+                if (type !== 'call' && window.refreshApplicationData) {
                     setTimeout(() => {
                         window.refreshApplicationData().catch(err => {
                             console.warn('[Modals] Error during auto-refresh after save:', err);
@@ -3373,32 +3374,63 @@ function openModal(type, itemId = null) {
             // Only add submit listener if it's not a transportation form
             // Transportation forms have their own submit handlers set up in setupTransportationFormTabs()
             if (type !== 'transportation' || !freshForm.classList.contains('transport-form')) {
-            freshForm.addEventListener('submit', async (e) => {
-                e.preventDefault();
-                console.log('[Modal] Form submit triggered for type:', type);
+                freshForm.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    console.log('[Modal] Form submit triggered for type:', type);
 
-                // For voter form, only submit if in single import mode or if editing
-                if (type === 'voter') {
-                    const activeForm = document.querySelector('.import-form[style*="block"]');
-                    const isSingleImportMode = activeForm && activeForm.dataset.importMode === 'single';
-                    // Check if editing by looking at form dataset
-                    const voterForm = document.getElementById('modal-form');
-                    const isEditing = voterForm && voterForm.dataset.editVoterId;
-
-                    if (isSingleImportMode || isEditing) {
-                        console.log('[Modal] Voter form submitting (single import mode or editing)');
-                        const formData = new FormData(freshForm);
-                        await handleFormSubmit(type, formData);
-                    } else {
-                        console.log('[Modal] Voter form not in single import mode, skipping submit');
+                    // Add a lightweight loader state for call forms
+                    let submitBtn = null;
+                    let originalBtnText = '';
+                    const isCallForm = type === 'call';
+                    if (isCallForm) {
+                        submitBtn = freshForm.querySelector('button[type="submit"]');
+                        if (submitBtn) {
+                            originalBtnText = submitBtn.textContent;
+                            submitBtn.disabled = true;
+                            submitBtn.textContent = 'Recording...';
+                        }
+                        if (typeof window.showLoading === 'function') {
+                            window.showLoading(true, {
+                                title: 'Recording call...',
+                                subtitle: 'Saving call details'
+                            });
+                        }
                     }
-                } else {
-                    // For all other forms (pledge, candidate, event, call, agent, ballot), submit normally
-                    console.log('[Modal] Non-voter form submitting:', type);
-                    const formData = new FormData(freshForm);
-                    await handleFormSubmit(type, formData);
-                }
-            });
+
+                    try {
+                        // For voter form, only submit if in single import mode or if editing
+                        if (type === 'voter') {
+                            const activeForm = document.querySelector('.import-form[style*="block"]');
+                            const isSingleImportMode = activeForm && activeForm.dataset.importMode === 'single';
+                            // Check if editing by looking at form dataset
+                            const voterForm = document.getElementById('modal-form');
+                            const isEditing = voterForm && voterForm.dataset.editVoterId;
+
+                            if (isSingleImportMode || isEditing) {
+                                console.log('[Modal] Voter form submitting (single import mode or editing)');
+                                const formData = new FormData(freshForm);
+                                await handleFormSubmit(type, formData);
+                            } else {
+                                console.log('[Modal] Voter form not in single import mode, skipping submit');
+                            }
+                        } else {
+                            // For all other forms (pledge, candidate, event, call, agent, ballot), submit normally
+                            console.log('[Modal] Non-voter form submitting:', type);
+                            const formData = new FormData(freshForm);
+                            await handleFormSubmit(type, formData);
+                        }
+                    } finally {
+                        if (isCallForm) {
+                            if (typeof window.showLoading === 'function') {
+                                window.showLoading(false);
+                            }
+                            if (submitBtn) {
+                                submitBtn.disabled = false;
+                                submitBtn.textContent = originalBtnText;
+                            }
+                        }
+                    }
+                });
             }
         }
 
